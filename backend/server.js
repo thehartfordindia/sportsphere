@@ -1,0 +1,368 @@
+"use strict";
+
+/**
+ * SportSphere — backend (Node.js native http, no framework).
+ * Provides:
+ *   - Multi-sport catalog + matches (live / upcoming / finished) with regions
+ *   - Player profiles (career + lifestyle)
+ *   - "Near me" match ranking by geolocation
+ *   - Demo wallet: balance, add money, pay, peer transfer, and
+ *     WATCH-TO-EARN cashback (simulated money — no real funds move)
+ *
+ * NOTE: All money here is DEMO/PLAY money. Real peer-to-peer money movement
+ * requires banking/PPI licenses, KYC and PCI compliance and is out of scope.
+ */
+
+const http = require("http");
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+const store = require("./store");
+
+const PORT = Number(process.env.PORT) || 8795;
+const ADMIN_SECRET = process.env.ADMIN_SECRET || "change-me";
+const PUBLIC_DIR = path.join(__dirname, "..", "public");
+
+/* ============================================================
+   Static seed data
+   ============================================================ */
+
+const SPORTS = [
+  { id: "cricket", name: "Cricket", icon: "🏏" },
+  { id: "football", name: "Football", icon: "⚽" },
+  { id: "basketball", name: "Basketball", icon: "🏀" },
+  { id: "tennis", name: "Tennis", icon: "🎾" },
+  { id: "kabaddi", name: "Kabaddi", icon: "🤼" },
+  { id: "hockey", name: "Hockey", icon: "🏑" },
+  { id: "badminton", name: "Badminton", icon: "🏸" },
+  { id: "esports", name: "Esports", icon: "🎮" },
+  { id: "f1", name: "Motorsport", icon: "🏎️" },
+  { id: "baseball", name: "Baseball", icon: "⚾" },
+];
+
+// Matches carry a rough venue geo for "near me" ranking.
+const MATCHES = [
+  { id: "m1", sport: "cricket", league: "IPL", home: "Hyderabad Sunrisers", away: "Chennai Kings", status: "LIVE", scoreHome: "142/3", scoreAway: "—", clock: "14.2 ov", region: "India", city: "Hyderabad", lat: 17.406, lon: 78.55, viewers: 82345 },
+  { id: "m2", sport: "football", league: "Premier League", home: "Man City", away: "Liverpool", status: "LIVE", scoreHome: "2", scoreAway: "1", clock: "67'", region: "England", city: "Manchester", lat: 53.483, lon: -2.2, viewers: 154210 },
+  { id: "m3", sport: "basketball", league: "NBA", home: "Lakers", away: "Celtics", status: "LIVE", scoreHome: "88", scoreAway: "91", clock: "Q3 4:12", region: "USA", city: "Los Angeles", lat: 34.043, lon: -118.267, viewers: 98120 },
+  { id: "m4", sport: "kabaddi", league: "Pro Kabaddi", home: "Telugu Titans", away: "Bengal Warriors", status: "LIVE", scoreHome: "28", scoreAway: "24", clock: "H2 8:40", region: "India", city: "Hyderabad", lat: 17.42, lon: 78.45, viewers: 41200 },
+  { id: "m5", sport: "tennis", league: "ATP", home: "N. Djokovic", away: "C. Alcaraz", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 19:30", region: "Spain", city: "Madrid", lat: 40.416, lon: -3.703, viewers: 0 },
+  { id: "m6", sport: "cricket", league: "The Hundred", home: "London Spirit", away: "Oval Invincibles", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 22:00", region: "England", city: "London", lat: 51.529, lon: -0.173, viewers: 0 },
+  { id: "m7", sport: "football", league: "La Liga", home: "Real Madrid", away: "Barcelona", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 20:45", region: "Spain", city: "Madrid", lat: 40.453, lon: -3.688, viewers: 0 },
+  { id: "m8", sport: "badminton", league: "BWF", home: "P.V. Sindhu", away: "Tai Tzu-ying", status: "FINISHED", scoreHome: "21-19, 21-17", scoreAway: "—", clock: "Full time", region: "India", city: "Hyderabad", lat: 17.41, lon: 78.47, viewers: 22100 },
+  { id: "m9", sport: "esports", league: "Valorant Champions", home: "Team Vitality", away: "Sentinels", status: "LIVE", scoreHome: "12", scoreAway: "10", clock: "Map 2", region: "Global", city: "Berlin", lat: 52.52, lon: 13.405, viewers: 210500 },
+  { id: "m10", sport: "f1", league: "Formula 1", home: "Grand Prix", away: "Silverstone", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Race Sun 15:00", region: "England", city: "Silverstone", lat: 52.071, lon: -1.016, viewers: 0 },
+  { id: "m11", sport: "hockey", league: "FIH Pro League", home: "India", away: "Australia", status: "LIVE", scoreHome: "3", scoreAway: "2", clock: "Q4 6:20", region: "India", city: "Bhubaneswar", lat: 20.296, lon: 85.824, viewers: 33400 },
+  { id: "m12", sport: "baseball", league: "MLB", home: "Yankees", away: "Red Sox", status: "FINISHED", scoreHome: "5", scoreAway: "3", clock: "Final", region: "USA", city: "New York", lat: 40.829, lon: -73.926, viewers: 61200 },
+];
+
+const HIGHLIGHTS = [
+  { id: "h1", matchId: "m8", title: "Sindhu's championship point smash", sport: "badminton", duration: "0:48", views: 1204000 },
+  { id: "h2", matchId: "m12", title: "Walk-off double in the 9th", sport: "baseball", duration: "1:12", views: 880000 },
+  { id: "h3", matchId: "m2", title: "Stunning long-range winner", sport: "football", duration: "0:35", views: 2450000 },
+  { id: "h4", matchId: "m1", title: "Six sixes in an over", sport: "cricket", duration: "1:30", views: 3100000 },
+  { id: "h5", matchId: "m9", title: "1v4 clutch to win the map", sport: "esports", duration: "0:52", views: 1650000 },
+  { id: "h6", matchId: "m11", title: "Last-minute penalty corner goal", sport: "hockey", duration: "0:41", views: 540000 },
+];
+
+const PLAYERS = [
+  { id: "p1", name: "Virat Kohli", sport: "cricket", country: "India", role: "Batsman", age: 37, team: "Hyderabad Sunrisers", rating: 96, career: { matches: 520, runs: 26000, avg: 53.4, titles: 9 }, lifestyle: { fitness: "Elite marathoner diet, no sugar", interests: ["Fitness", "Football", "Investing"], foundation: "Youth sports charity" } },
+  { id: "p2", name: "Erling Haaland", sport: "football", country: "Norway", role: "Striker", age: 25, team: "Man City", rating: 94, career: { matches: 310, goals: 280, assists: 60, titles: 7 }, lifestyle: { fitness: "Sleep-optimized, cold plunges", interests: ["Gaming", "Golf"], foundation: "Grassroots football" } },
+  { id: "p3", name: "LeBron James", sport: "basketball", country: "USA", role: "Forward", age: 41, team: "Lakers", rating: 93, career: { matches: 1490, points: 40000, assists: 11000, titles: 4 }, lifestyle: { fitness: "$1M/yr on body maintenance", interests: ["Business", "Media", "Wine"], foundation: "I PROMISE School" } },
+  { id: "p4", name: "P.V. Sindhu", sport: "badminton", country: "India", role: "Singles", age: 30, team: "India", rating: 90, career: { matches: 420, titles: 14, olympicMedals: 2 }, lifestyle: { fitness: "6am court + gym daily", interests: ["Cooking", "Travel"], foundation: "Girls in sport" } },
+  { id: "p5", name: "Carlos Alcaraz", sport: "tennis", country: "Spain", role: "Singles", age: 22, team: "Spain", rating: 92, career: { matches: 320, titles: 16, slams: 4 }, lifestyle: { fitness: "Clay-court endurance blocks", interests: ["Golf", "Music"], foundation: "Tennis academy scholarships" } },
+  { id: "p6", name: "Pawan Sehrawat", sport: "kabaddi", country: "India", role: "Raider", age: 29, team: "Telugu Titans", rating: 89, career: { matches: 180, raidPoints: 1400, titles: 3 }, lifestyle: { fitness: "Wrestling + sprint training", interests: ["Farming", "Fitness"], foundation: "Rural sports camps" } },
+];
+
+/* ============================================================
+   Helpers
+   ============================================================ */
+function haversineKm(lat1, lon1, lat2, lon2) {
+  const toRad = (v) => (v * Math.PI) / 180;
+  const R = 6371;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+function genId(prefix) {
+  return `${prefix}-${Date.now()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
+}
+function cleanText(v, max = 120) {
+  return String(v == null ? "" : v).replace(/[<>]/g, "").replace(/[\u0000-\u001f\u007f]/g, " ").trim().slice(0, max);
+}
+function clampNumber(v, min, max, fallback) {
+  const n = Number(v);
+  if (Number.isNaN(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+}
+function sendJson(res, status, payload) {
+  const body = JSON.stringify(payload);
+  res.writeHead(status, {
+    "Content-Type": "application/json; charset=utf-8",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type, x-admin-secret",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  });
+  res.end(body);
+}
+function readBody(req) {
+  return new Promise((resolve) => {
+    let data = "";
+    req.on("data", (c) => {
+      data += c;
+      if (data.length > 1e6) req.destroy();
+    });
+    req.on("end", () => {
+      try {
+        resolve(data ? JSON.parse(data) : {});
+      } catch (_e) {
+        resolve({});
+      }
+    });
+  });
+}
+
+const MIME = {
+  ".html": "text/html; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".js": "application/javascript; charset=utf-8",
+  ".json": "application/json; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+};
+function serveStatic(res, fileName) {
+  const safe = path.normalize(fileName).replace(/^(\.\.[/\\])+/, "");
+  const filePath = path.join(PUBLIC_DIR, safe);
+  if (!filePath.startsWith(PUBLIC_DIR)) {
+    res.writeHead(403);
+    res.end("Forbidden");
+    return;
+  }
+  fs.readFile(filePath, (err, content) => {
+    if (err) {
+      res.writeHead(404, { "Content-Type": "text/plain" });
+      res.end("Not found");
+      return;
+    }
+    const ext = path.extname(filePath).toLowerCase();
+    res.writeHead(200, { "Content-Type": MIME[ext] || "application/octet-stream" });
+    res.end(content);
+  });
+}
+
+/* ============================================================
+   Wallet (demo money) + watch-to-earn cashback
+   ============================================================ */
+const SIGNUP_BONUS = 500;
+const WATCH_REWARD_PER_MIN = 2; // ₹2 demo cashback per minute watched
+const WATCH_DAILY_CAP = 50; // max ₹50/day from watching
+const PAY_CASHBACK_RATE = 0.02; // 2% cashback on payments
+
+function newWallet(userId) {
+  return {
+    userId,
+    balance: SIGNUP_BONUS,
+    cashbackEarned: 0,
+    watchMinutesToday: 0,
+    watchDate: new Date().toISOString().slice(0, 10),
+    transactions: [
+      { id: genId("TXN"), type: "BONUS", amount: SIGNUP_BONUS, note: "Welcome bonus", at: new Date().toISOString() },
+    ],
+  };
+}
+function pushTxn(wallet, type, amount, note) {
+  wallet.transactions.unshift({ id: genId("TXN"), type, amount, note, at: new Date().toISOString() });
+  wallet.transactions = wallet.transactions.slice(0, 50);
+}
+function rolloverWatchDay(wallet) {
+  const today = new Date().toISOString().slice(0, 10);
+  if (wallet.watchDate !== today) {
+    wallet.watchDate = today;
+    wallet.watchMinutesToday = 0;
+  }
+}
+async function loadOrCreateWallet(userId) {
+  let wallet = await store.getWallet(userId);
+  if (!wallet) {
+    wallet = newWallet(userId);
+    await store.saveWallet(userId, wallet);
+  }
+  rolloverWatchDay(wallet);
+  return wallet;
+}
+
+/* ============================================================
+   Router
+   ============================================================ */
+const server = http.createServer(async (req, res) => {
+  const pathname = (req.url || "/").split("?")[0];
+  const query = new URLSearchParams((req.url || "").split("?")[1] || "");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(204, {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Headers": "Content-Type, x-admin-secret",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    });
+    res.end();
+    return;
+  }
+
+  try {
+    if (pathname === "/api/health") {
+      return sendJson(res, 200, { ok: true, storage: store.mode(), time: new Date().toISOString() });
+    }
+
+    if (pathname === "/api/sports") {
+      return sendJson(res, 200, { sports: SPORTS });
+    }
+
+    if (pathname === "/api/matches") {
+      const sport = query.get("sport");
+      const status = query.get("status");
+      const region = query.get("region");
+      let list = MATCHES.map((m) => ({ ...m }));
+      if (sport && sport !== "all") list = list.filter((m) => m.sport === sport);
+      if (status && status !== "all") list = list.filter((m) => m.status === status.toUpperCase());
+      if (region && region !== "all") list = list.filter((m) => m.region === region);
+      const lat = Number(query.get("lat"));
+      const lon = Number(query.get("lon"));
+      if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
+        list = list
+          .map((m) => ({ ...m, distanceKm: Math.round(haversineKm(lat, lon, m.lat, m.lon)) }))
+          .sort((a, b) => {
+            // live first, then nearest
+            if (a.status === "LIVE" && b.status !== "LIVE") return -1;
+            if (b.status === "LIVE" && a.status !== "LIVE") return 1;
+            return a.distanceKm - b.distanceKm;
+          });
+      }
+      const regions = [...new Set(MATCHES.map((m) => m.region))];
+      return sendJson(res, 200, { matches: list, regions });
+    }
+
+    if (pathname === "/api/highlights") {
+      const sport = query.get("sport");
+      let list = HIGHLIGHTS;
+      if (sport && sport !== "all") list = list.filter((h) => h.sport === sport);
+      return sendJson(res, 200, { highlights: list });
+    }
+
+    if (pathname === "/api/players") {
+      const sport = query.get("sport");
+      let list = PLAYERS;
+      if (sport && sport !== "all") list = list.filter((p) => p.sport === sport);
+      return sendJson(res, 200, { players: list });
+    }
+
+    if (pathname.startsWith("/api/players/") && req.method === "GET") {
+      const id = decodeURIComponent(pathname.split("/")[3] || "");
+      const found = PLAYERS.find((p) => p.id === id);
+      if (!found) return sendJson(res, 404, { error: "Player not found" });
+      return sendJson(res, 200, found);
+    }
+
+    // ---- Wallet ----
+    if (pathname === "/api/wallet" && req.method === "GET") {
+      const userId = cleanText(query.get("userId") || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, wallet);
+    }
+
+    if (pathname === "/api/wallet/add" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const amount = clampNumber(body.amount, 1, 100000, 0);
+      if (amount <= 0) return sendJson(res, 400, { error: "Enter a valid amount." });
+      const wallet = await loadOrCreateWallet(userId);
+      wallet.balance += amount;
+      pushTxn(wallet, "ADD", amount, `Added money via ${cleanText(body.method || "UPI", 20)}`);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, wallet);
+    }
+
+    if (pathname === "/api/wallet/pay" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const amount = clampNumber(body.amount, 1, 100000, 0);
+      const to = cleanText(body.to || "Merchant", 60);
+      if (amount <= 0) return sendJson(res, 400, { error: "Enter a valid amount." });
+      const wallet = await loadOrCreateWallet(userId);
+      if (wallet.balance < amount) return sendJson(res, 400, { error: "Insufficient balance." });
+      wallet.balance -= amount;
+      pushTxn(wallet, "PAY", -amount, `Paid ${to}`);
+      // instant cashback for paying via the app
+      const cashback = Math.round(amount * PAY_CASHBACK_RATE);
+      if (cashback > 0) {
+        wallet.balance += cashback;
+        wallet.cashbackEarned += cashback;
+        pushTxn(wallet, "CASHBACK", cashback, `2% cashback on payment to ${to}`);
+      }
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, { wallet, cashback });
+    }
+
+    if (pathname === "/api/wallet/transfer" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const toUser = cleanText(body.toUser || "", 60);
+      const amount = clampNumber(body.amount, 1, 100000, 0);
+      if (!toUser) return sendJson(res, 400, { error: "Enter a recipient." });
+      if (amount <= 0) return sendJson(res, 400, { error: "Enter a valid amount." });
+      const wallet = await loadOrCreateWallet(userId);
+      if (wallet.balance < amount) return sendJson(res, 400, { error: "Insufficient balance." });
+      wallet.balance -= amount;
+      pushTxn(wallet, "TRANSFER", -amount, `Sent to ${toUser}`);
+      await store.saveWallet(userId, wallet);
+      // credit recipient's demo wallet too
+      const recipient = await loadOrCreateWallet(toUser);
+      recipient.balance += amount;
+      pushTxn(recipient, "RECEIVE", amount, `Received from ${userId}`);
+      await store.saveWallet(toUser, recipient);
+      return sendJson(res, 200, wallet);
+    }
+
+    // WATCH-TO-EARN: client reports minutes watched; server awards capped cashback
+    if (pathname === "/api/wallet/watch" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const minutes = clampNumber(body.minutes, 0, 60, 0);
+      const wallet = await loadOrCreateWallet(userId);
+      const remainingCapMinutes = Math.max(0, WATCH_DAILY_CAP / WATCH_REWARD_PER_MIN - wallet.watchMinutesToday);
+      const rewardableMinutes = Math.min(minutes, remainingCapMinutes);
+      const reward = Math.round(rewardableMinutes * WATCH_REWARD_PER_MIN);
+      if (reward > 0) {
+        wallet.balance += reward;
+        wallet.cashbackEarned += reward;
+        wallet.watchMinutesToday += rewardableMinutes;
+        pushTxn(wallet, "WATCH_REWARD", reward, `Watch-to-earn: ${rewardableMinutes} min`);
+        await store.saveWallet(userId, wallet);
+      }
+      return sendJson(res, 200, {
+        wallet,
+        reward,
+        cappedToday: wallet.watchMinutesToday * WATCH_REWARD_PER_MIN >= WATCH_DAILY_CAP,
+        dailyCap: WATCH_DAILY_CAP,
+      });
+    }
+
+    // ---- Static ----
+    if (pathname === "/" || pathname === "/index.html") return serveStatic(res, "index.html");
+    if (pathname === "/styles.css") return serveStatic(res, "styles.css");
+    if (pathname === "/app.js") return serveStatic(res, "app.js");
+    if (pathname !== "/" && !pathname.startsWith("/api/")) return serveStatic(res, pathname.slice(1));
+
+    return sendJson(res, 404, { error: "Not found" });
+  } catch (err) {
+    return sendJson(res, 500, { error: "Server error", detail: String(err && err.message) });
+  }
+});
+
+server.listen(PORT, async () => {
+  await store.ensureReady();
+  // eslint-disable-next-line no-console
+  console.log(`SportSphere running on http://localhost:${PORT} (storage: ${store.mode()})`);
+});
