@@ -1,0 +1,27 @@
+# Render Blueprint for SportSphere
+# Deploys a free Node web service. Postgres is optional (see below).
+services:
+  - type: web
+    name: sportsphere
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node backend/server.js
+    envVars:
+      - key: ADMIN_SECRET
+        generateValue: true
+      # Durable wallet storage (optional). To enable:
+      #   1) Create a free Render PostgreSQL database.
+      #   2) Add DATABASE_URL here (or in the dashboard) with its Internal URL.
+      # - key: DATABASE_URL
+      #   fromDatabase:
+      #     name: sportsphere-db
+      #     property: connectionString
+      # - key: WEBSITE_URL
+
+# Uncomment to provision the database via Blueprint:
+# databases:
+#   - name: sportsphere-db
+#     plan: free
+#     databaseName: sportsphere
+#     user: sportsphere
