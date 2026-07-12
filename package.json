@@ -1,0 +1,17 @@
+{
+  "name": "sportsphere",
+  "version": "1.0.0",
+  "description": "SportSphere — live sports by location, player profiles, and a demo wallet with watch-to-earn cashback.",
+  "main": "backend/server.js",
+  "scripts": {
+    "start": "node backend/server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {},
+  "optionalDependencies": {
+    "pg": "^8.13.1"
+  },
+  "license": "MIT"
+}
