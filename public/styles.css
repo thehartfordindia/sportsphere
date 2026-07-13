@@ -150,7 +150,11 @@ h3 {
   padding: 1.4rem 1.2rem 3rem;
 }
 .view {
+  display: none;
   animation: fade 0.25s ease;
+}
+.view.active {
+  display: block;
 }
 @keyframes fade {
   from {
