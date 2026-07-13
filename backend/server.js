@@ -910,6 +910,36 @@ const server = http.createServer(async (req, res) => {
       await store.saveWallet(userId, wallet);
       return sendJson(res, 200, { already: false, correct, correctIndex: q.answer, reward, ...triviaInfo(wallet), wallet });
     }
+
+    // ---- Personal stats snapshot ----
+    if (pathname === "/api/stats" && req.method === "GET") {
+      const userId = cleanText(query.get("userId") || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      await store.saveWallet(userId, wallet);
+      const ach = buildAchievements(wallet);
+      // Compute leaderboard rank among real players + demo bots.
+      const wallets = await store.listWallets();
+      const realPoints = wallets.map((w) => Number((w.wallet && w.wallet.points) || 0));
+      const botPoints = DEMO_LEADERS.map((b) => b.points);
+      const allPoints = realPoints.concat(botPoints);
+      const myPoints = Number(wallet.points || 0);
+      const rank = allPoints.filter((p) => p > myPoints).length + 1;
+      const recent = (wallet.transactions || []).slice(0, 5);
+      return sendJson(res, 200, {
+        points: myPoints,
+        rupees: Math.floor(myPoints / POINTS_PER_RUPEE),
+        balance: Number(wallet.balance || 0),
+        gamesPlayed: Number(wallet.gamesPlayed || 0),
+        checkinStreak: Number(wallet.checkinStreak || 0),
+        triviaStreak: Number(wallet.triviaStreak || 0),
+        triviaBest: Number(wallet.triviaBest || 0),
+        badgesUnlocked: ach.unlockedCount,
+        badgesTotal: ach.total,
+        rank,
+        totalPlayers: allPoints.length,
+        recent,
+      });
+    }
     // ---- Quiz ----
     if (pathname === "/api/games/quiz") {
       // Pick 5 random questions; return their real ids so scoring stays honest.
