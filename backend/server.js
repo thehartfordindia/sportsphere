@@ -24,6 +24,7 @@ const path = require("path");
 const crypto = require("crypto");
 const store = require("./store");
 const sportsdata = require("./sportsdata");
+const lineups = require("./lineups");
 
 const PORT = Number(process.env.PORT) || 8795;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "change-me";
@@ -573,6 +574,21 @@ const server = http.createServer(async (req, res) => {
       }
       const regions = [...new Set(base.map((m) => m.region).filter(Boolean))];
       return sendJson(res, 200, { matches: list, regions, source });
+    }
+
+    // Full squads / lineup for a single match — generated dynamically.
+    if (pathname.startsWith("/api/matches/") && pathname.endsWith("/lineup") && req.method === "GET") {
+      const id = decodeURIComponent(pathname.split("/")[3] || "");
+      let base = await sportsdata.getLiveMatches();
+      if (!base || !base.length) base = SAMPLE_MATCHES;
+      const match = base.find((m) => m.id === id) || SAMPLE_MATCHES.find((m) => m.id === id);
+      if (!match) return sendJson(res, 404, { error: "Match not found" });
+      const lineup = lineups.buildLineup(match);
+      if (!lineup) return sendJson(res, 404, { error: "No lineup available for this match" });
+      return sendJson(res, 200, {
+        match: { id: match.id, sport: match.sport, league: match.league, home: match.home, away: match.away, status: match.status, region: match.region },
+        ...lineup,
+      });
     }
 
     if (pathname === "/api/highlights") {
