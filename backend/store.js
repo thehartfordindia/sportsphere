@@ -11,6 +11,7 @@ const path = require("path");
 
 const DATA_DIR = path.join(__dirname, "data");
 const WALLETS_FILE = path.join(DATA_DIR, "wallets.json");
+const USERS_FILE = path.join(DATA_DIR, "users.json");
 
 const DATABASE_URL = process.env.DATABASE_URL || "";
 let pool = null;
@@ -55,9 +56,17 @@ async function ensureReady() {
           updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
       `);
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS users (
+          id TEXT PRIMARY KEY,
+          data JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+      `);
     } else {
       ensureDataDir();
       if (!fs.existsSync(WALLETS_FILE)) writeJsonFile(WALLETS_FILE, {});
+      if (!fs.existsSync(USERS_FILE)) writeJsonFile(USERS_FILE, {});
     }
   })();
   return ready;
@@ -88,4 +97,29 @@ async function saveWallet(userId, wallet) {
   writeJsonFile(WALLETS_FILE, all);
 }
 
-module.exports = { mode, ensureReady, getWallet, saveWallet };
+/** users is an object keyed by lowercased username. */
+async function getUser(id) {
+  await ensureReady();
+  if (usingDb()) {
+    const res = await pool.query("SELECT data FROM users WHERE id = $1", [id]);
+    return res.rows[0] ? res.rows[0].data : null;
+  }
+  const all = readJsonFile(USERS_FILE, {});
+  return all[id] || null;
+}
+
+async function saveUser(id, user) {
+  await ensureReady();
+  if (usingDb()) {
+    await pool.query(
+      "INSERT INTO users (id, data, updated_at) VALUES ($1, $2, now()) ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data, updated_at = now()",
+      [id, user]
+    );
+    return;
+  }
+  const all = readJsonFile(USERS_FILE, {});
+  all[id] = user;
+  writeJsonFile(USERS_FILE, all);
+}
+
+module.exports = { mode, ensureReady, getWallet, saveWallet, getUser, saveUser };
