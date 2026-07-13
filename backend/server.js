@@ -637,6 +637,38 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, performance.buildPerformance(found));
     }
 
+    // Head-to-head comparison of two players.
+    if (pathname === "/api/compare" && req.method === "GET") {
+      const aId = decodeURIComponent(query.get("a") || "");
+      const bId = decodeURIComponent(query.get("b") || "");
+      const a = PLAYERS.find((p) => p.id === aId);
+      const b = PLAYERS.find((p) => p.id === bId);
+      if (!a || !b) return sendJson(res, 404, { error: "Both players are required" });
+      if (a.id === b.id) return sendJson(res, 400, { error: "Pick two different players" });
+      const build = (p) => {
+        const perf = performance.buildPerformance(p);
+        return {
+          id: p.id, name: p.name, sport: p.sport, country: p.country,
+          role: p.role, team: p.team, age: p.age, rating: p.rating, tagline: p.tagline,
+          momentum: perf.momentum, momentumIcon: perf.momentumIcon,
+          recentAvg: perf.recentAvg, record: perf.record, trend: perf.trend, season: perf.season,
+        };
+      };
+      const A = build(a);
+      const B = build(b);
+      // Simple metric duel: rating, recent form, wins in last 7.
+      const metrics = [
+        { key: "rating", label: "Overall rating", a: A.rating, b: B.rating },
+        { key: "recentAvg", label: "Recent form (avg)", a: A.recentAvg, b: B.recentAvg },
+        { key: "wins", label: "Wins (last 7)", a: A.record.wins, b: B.record.wins },
+      ].map((m) => ({ ...m, winner: m.a === m.b ? "tie" : m.a > m.b ? "a" : "b" }));
+      let aWins = 0, bWins = 0;
+      metrics.forEach((m) => { if (m.winner === "a") aWins++; else if (m.winner === "b") bWins++; });
+      const verdict = aWins === bWins ? "tie" : aWins > bWins ? "a" : "b";
+      const sameSport = a.sport === b.sport;
+      return sendJson(res, 200, { a: A, b: B, metrics, verdict, sameSport });
+    }
+
     if (pathname.startsWith("/api/players/") && req.method === "GET") {
       const id = decodeURIComponent(pathname.split("/")[3] || "");
       const found = PLAYERS.find((p) => p.id === id);
