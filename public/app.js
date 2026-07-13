@@ -658,6 +658,7 @@ async function loadGames() {
   loadLeaderboard();
   loadCheckin();
   loadAchievements();
+  loadTrivia();
 }
 async function loadLeaderboard() {
   const list = $("lbList");
@@ -809,6 +810,84 @@ function renderAchievements(d) {
     }
   }
   state._achUnlocked = now;
+}
+async function loadTrivia() {
+  const card = $("triviaCard");
+  if (!card) return;
+  try {
+    const uid = state.userId ? `?userId=${encodeURIComponent(state.userId)}` : "";
+    const d = await api(`/api/trivia${uid}`);
+    renderTrivia(d);
+  } catch (e) {
+    card.hidden = true;
+  }
+}
+function renderTrivia(d) {
+  const card = $("triviaCard");
+  if (!card) return;
+  card.hidden = false;
+  const streak = $("triviaStreak");
+  if (streak) streak.innerHTML = `🔥 <b>${d.streak || 0}</b>`;
+  $("triviaQ").textContent = d.question.q;
+  const opts = $("triviaOpts");
+  const result = $("triviaResult");
+  const answered = d.answeredToday;
+  opts.innerHTML = d.question.options
+    .map((o, i) => {
+      let cls = "trivia-opt";
+      if (answered) {
+        cls += " done";
+        if (i === d.correctIndex) cls += " correct";
+      }
+      return `<button class="${cls}" data-choice="${i}" ${answered ? "disabled" : ""}>${escapeHtml(o)}</button>`;
+    })
+    .join("");
+  if (!answered) {
+    opts.querySelectorAll("[data-choice]").forEach((b) =>
+      b.addEventListener("click", () => answerTrivia(Number(b.getAttribute("data-choice"))))
+    );
+  }
+  const sub = $("triviaSub");
+  if (answered) {
+    result.hidden = false;
+    result.className = "trivia-result " + (d.lastCorrect ? "win" : "lose");
+    result.textContent = d.lastCorrect
+      ? `✅ Correct! You're on a ${d.streak}-day streak. Best: ${d.best}.`
+      : `❌ Not quite — the right answer is highlighted. Come back tomorrow!`;
+    if (sub) sub.textContent = `Best streak: ${d.best} days. New question every day.`;
+  } else {
+    result.hidden = true;
+    if (sub) sub.textContent = `Answer correctly for +${d.nextReward} points and grow your streak!`;
+  }
+}
+async function answerTrivia(choice) {
+  const opts = $("triviaOpts");
+  opts.querySelectorAll("[data-choice]").forEach((b) => (b.disabled = true));
+  try {
+    const d = await api("/api/trivia/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: state.userId || "guest", choice }),
+    });
+    if (d.wallet) {
+      state.wallet = d.wallet;
+      updatePointsUI();
+      updateWalletUI();
+    }
+    renderTrivia(d);
+    if (d.already) {
+      toast("You already answered today's question.");
+    } else if (d.correct) {
+      toast(`🧠 Correct! +${d.reward} points · 🔥 ${d.streak}-day streak`);
+      loadLeaderboard();
+      loadAchievements();
+    } else {
+      toast("❌ Wrong answer — streak reset. Try again tomorrow!");
+    }
+  } catch (e) {
+    opts.querySelectorAll("[data-choice]").forEach((b) => (b.disabled = false));
+    toast("Couldn't submit answer. Try again.");
+  }
 }
 function renderGameGrid() {
   const grid = $("gameGrid");
