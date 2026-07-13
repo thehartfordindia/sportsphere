@@ -47,19 +47,52 @@ const SPORTS = [
 ];
 
 // Sample matches double as the fallback when the live API is unreachable.
+// A broad, global board across many countries, leagues and sports.
 const SAMPLE_MATCHES = [
-  { id: "m1", sport: "cricket", league: "IPL", home: "Hyderabad Sunrisers", away: "Chennai Kings", status: "LIVE", scoreHome: "142/3", scoreAway: "—", clock: "14.2 ov", region: "India", city: "Hyderabad", lat: 17.406, lon: 78.55, viewers: 82345 },
-  { id: "m2", sport: "football", league: "Premier League", home: "Man City", away: "Liverpool", status: "LIVE", scoreHome: "2", scoreAway: "1", clock: "67'", region: "England", city: "Manchester", lat: 53.483, lon: -2.2, viewers: 154210 },
-  { id: "m3", sport: "basketball", league: "NBA", home: "Lakers", away: "Celtics", status: "LIVE", scoreHome: "88", scoreAway: "91", clock: "Q3 4:12", region: "USA", city: "Los Angeles", lat: 34.043, lon: -118.267, viewers: 98120 },
-  { id: "m4", sport: "kabaddi", league: "Pro Kabaddi", home: "Telugu Titans", away: "Bengal Warriors", status: "LIVE", scoreHome: "28", scoreAway: "24", clock: "H2 8:40", region: "India", city: "Hyderabad", lat: 17.42, lon: 78.45, viewers: 41200 },
-  { id: "m5", sport: "tennis", league: "ATP", home: "N. Djokovic", away: "C. Alcaraz", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 19:30", region: "Spain", city: "Madrid", lat: 40.416, lon: -3.703, viewers: 0 },
-  { id: "m6", sport: "cricket", league: "The Hundred", home: "London Spirit", away: "Oval Invincibles", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 22:00", region: "England", city: "London", lat: 51.529, lon: -0.173, viewers: 0 },
-  { id: "m7", sport: "football", league: "La Liga", home: "Real Madrid", away: "Barcelona", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 20:45", region: "Spain", city: "Madrid", lat: 40.453, lon: -3.688, viewers: 0 },
-  { id: "m8", sport: "badminton", league: "BWF", home: "P.V. Sindhu", away: "Tai Tzu-ying", status: "FINISHED", scoreHome: "21-19, 21-17", scoreAway: "—", clock: "Full time", region: "India", city: "Hyderabad", lat: 17.41, lon: 78.47, viewers: 22100 },
-  { id: "m9", sport: "esports", league: "Valorant Champions", home: "Team Vitality", away: "Sentinels", status: "LIVE", scoreHome: "12", scoreAway: "10", clock: "Map 2", region: "Global", city: "Berlin", lat: 52.52, lon: 13.405, viewers: 210500 },
-  { id: "m10", sport: "f1", league: "Formula 1", home: "British GP", away: "Silverstone", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Race Sun 15:00", region: "England", city: "Silverstone", lat: 52.071, lon: -1.016, viewers: 0 },
-  { id: "m11", sport: "hockey", league: "FIH Pro League", home: "India", away: "Australia", status: "LIVE", scoreHome: "3", scoreAway: "2", clock: "Q4 6:20", region: "India", city: "Bhubaneswar", lat: 20.296, lon: 85.824, viewers: 33400 },
-  { id: "m12", sport: "baseball", league: "MLB", home: "Yankees", away: "Red Sox", status: "FINISHED", scoreHome: "5", scoreAway: "3", clock: "Final", region: "USA", city: "New York", lat: 40.829, lon: -73.926, viewers: 61200 },
+  // ---- Football (worldwide) ----
+  { id: "m1", sport: "football", league: "Premier League", home: "Man City", away: "Liverpool", status: "LIVE", scoreHome: "2", scoreAway: "1", clock: "67'", region: "England", city: "Manchester", lat: 53.483, lon: -2.2, viewers: 1542100 },
+  { id: "m2", sport: "football", league: "Bundesliga", home: "Bayern Munich", away: "Dortmund", status: "LIVE", scoreHome: "3", scoreAway: "2", clock: "72'", region: "Germany", city: "Munich", lat: 48.135, lon: 11.582, viewers: 987400 },
+  { id: "m3", sport: "football", league: "Serie A", home: "Inter Milan", away: "Juventus", status: "LIVE", scoreHome: "1", scoreAway: "1", clock: "58'", region: "Italy", city: "Milan", lat: 45.464, lon: 9.19, viewers: 764200 },
+  { id: "m4", sport: "football", league: "Ligue 1", home: "PSG", away: "Marseille", status: "LIVE", scoreHome: "2", scoreAway: "0", clock: "61'", region: "France", city: "Paris", lat: 48.856, lon: 2.352, viewers: 812900 },
+  { id: "m5", sport: "football", league: "La Liga", home: "Real Madrid", away: "Barcelona", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 20:45", region: "Spain", city: "Madrid", lat: 40.453, lon: -3.688, viewers: 0 },
+  { id: "m6", sport: "football", league: "Saudi Pro League", home: "Al Nassr", away: "Al Hilal", status: "LIVE", scoreHome: "1", scoreAway: "2", clock: "77'", region: "Saudi Arabia", city: "Riyadh", lat: 24.713, lon: 46.675, viewers: 655300 },
+  { id: "m7", sport: "football", league: "Brasileirão", home: "Flamengo", away: "Palmeiras", status: "LIVE", scoreHome: "0", scoreAway: "0", clock: "34'", region: "Brazil", city: "Rio de Janeiro", lat: -22.906, lon: -43.172, viewers: 543800 },
+  { id: "m8", sport: "football", league: "MLS", home: "Inter Miami", away: "LA Galaxy", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 02:30", region: "USA", city: "Miami", lat: 25.761, lon: -80.191, viewers: 0 },
+  { id: "m9", sport: "football", league: "Eredivisie", home: "Ajax", away: "PSV", status: "FINISHED", scoreHome: "2", scoreAway: "3", clock: "Full time", region: "Netherlands", city: "Amsterdam", lat: 52.367, lon: 4.904, viewers: 288100 },
+  { id: "m10", sport: "football", league: "Scottish Premiership", home: "Celtic", away: "Rangers", status: "LIVE", scoreHome: "1", scoreAway: "0", clock: "52'", region: "Scotland", city: "Glasgow", lat: 55.864, lon: -4.251, viewers: 402700 },
+  { id: "m11", sport: "football", league: "UEFA Champions League", home: "Arsenal", away: "Bayern Munich", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 00:00", region: "England", city: "London", lat: 51.555, lon: -0.108, viewers: 0 },
+  // ---- Cricket ----
+  { id: "m12", sport: "cricket", league: "IPL", home: "Hyderabad Sunrisers", away: "Chennai Kings", status: "LIVE", scoreHome: "142/3", scoreAway: "—", clock: "14.2 ov", region: "India", city: "Hyderabad", lat: 17.406, lon: 78.55, viewers: 823450 },
+  { id: "m13", sport: "cricket", league: "ODI Series", home: "India", away: "Australia", status: "LIVE", scoreHome: "210/4", scoreAway: "—", clock: "32.1 ov", region: "India", city: "Mumbai", lat: 19.076, lon: 72.877, viewers: 1120000 },
+  { id: "m14", sport: "cricket", league: "Test Match", home: "England", away: "Pakistan", status: "LIVE", scoreHome: "320/6", scoreAway: "—", clock: "Day 2 · 88 ov", region: "England", city: "London", lat: 51.507, lon: -0.127, viewers: 214500 },
+  { id: "m15", sport: "cricket", league: "Big Bash League", home: "Sydney Sixers", away: "Melbourne Stars", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 13:45", region: "Australia", city: "Sydney", lat: -33.868, lon: 151.209, viewers: 0 },
+  { id: "m16", sport: "cricket", league: "The Hundred", home: "London Spirit", away: "Oval Invincibles", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 22:00", region: "England", city: "London", lat: 51.529, lon: -0.173, viewers: 0 },
+  // ---- Basketball ----
+  { id: "m17", sport: "basketball", league: "NBA", home: "Lakers", away: "Celtics", status: "LIVE", scoreHome: "88", scoreAway: "91", clock: "Q3 4:12", region: "USA", city: "Los Angeles", lat: 34.043, lon: -118.267, viewers: 981200 },
+  { id: "m18", sport: "basketball", league: "NBA", home: "Warriors", away: "Nuggets", status: "LIVE", scoreHome: "76", scoreAway: "74", clock: "Q3 1:05", region: "USA", city: "San Francisco", lat: 37.774, lon: -122.419, viewers: 712300 },
+  { id: "m19", sport: "basketball", league: "EuroLeague", home: "Real Madrid", away: "Olympiacos", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 21:00", region: "Spain", city: "Madrid", lat: 40.424, lon: -3.681, viewers: 0 },
+  // ---- Tennis ----
+  { id: "m20", sport: "tennis", league: "ATP Finals", home: "N. Djokovic", away: "C. Alcaraz", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 19:30", region: "Italy", city: "Turin", lat: 45.07, lon: 7.686, viewers: 0 },
+  { id: "m21", sport: "tennis", league: "WTA Tour", home: "I. Swiatek", away: "A. Sabalenka", status: "LIVE", scoreHome: "6-4, 3", scoreAway: "2", clock: "Set 2", region: "USA", city: "New York", lat: 40.749, lon: -73.845, viewers: 328400 },
+  // ---- Kabaddi ----
+  { id: "m22", sport: "kabaddi", league: "Pro Kabaddi", home: "Telugu Titans", away: "Bengal Warriors", status: "LIVE", scoreHome: "28", scoreAway: "24", clock: "H2 8:40", region: "India", city: "Hyderabad", lat: 17.42, lon: 78.45, viewers: 412000 },
+  { id: "m23", sport: "kabaddi", league: "Pro Kabaddi", home: "Patna Pirates", away: "U Mumba", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 20:00", region: "India", city: "Patna", lat: 25.594, lon: 85.137, viewers: 0 },
+  // ---- Hockey ----
+  { id: "m24", sport: "hockey", league: "FIH Pro League", home: "India", away: "Australia", status: "LIVE", scoreHome: "3", scoreAway: "2", clock: "Q4 6:20", region: "India", city: "Bhubaneswar", lat: 20.296, lon: 85.824, viewers: 334000 },
+  { id: "m25", sport: "hockey", league: "NHL", home: "NY Rangers", away: "Boston Bruins", status: "LIVE", scoreHome: "2", scoreAway: "2", clock: "P2 5:48", region: "USA", city: "New York", lat: 40.75, lon: -73.993, viewers: 288700 },
+  // ---- Badminton ----
+  { id: "m26", sport: "badminton", league: "BWF World Tour", home: "P.V. Sindhu", away: "Tai Tzu-ying", status: "FINISHED", scoreHome: "21-19, 21-17", scoreAway: "—", clock: "Full time", region: "India", city: "Hyderabad", lat: 17.41, lon: 78.47, viewers: 221000 },
+  { id: "m27", sport: "badminton", league: "BWF World Tour", home: "V. Axelsen", away: "K. Momota", status: "LIVE", scoreHome: "21-18, 12", scoreAway: "9", clock: "Game 2", region: "Japan", city: "Tokyo", lat: 35.676, lon: 139.65, viewers: 176500 },
+  // ---- Esports ----
+  { id: "m28", sport: "esports", league: "Valorant Champions", home: "Team Vitality", away: "Sentinels", status: "LIVE", scoreHome: "12", scoreAway: "10", clock: "Map 2", region: "Germany", city: "Berlin", lat: 52.52, lon: 13.405, viewers: 2105000 },
+  { id: "m29", sport: "esports", league: "LoL Worlds", home: "T1", away: "G2 Esports", status: "LIVE", scoreHome: "1", scoreAway: "1", clock: "Game 3", region: "South Korea", city: "Seoul", lat: 37.566, lon: 126.978, viewers: 3480000 },
+  { id: "m30", sport: "esports", league: "Dota 2 · The International", home: "Team Spirit", away: "Gaimin Gladiators", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 18:00", region: "Global", city: "Copenhagen", lat: 55.676, lon: 12.568, viewers: 0 },
+  // ---- Motorsport ----
+  { id: "m31", sport: "f1", league: "Formula 1", home: "British GP", away: "Silverstone", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Race Sun 15:00", region: "England", city: "Silverstone", lat: 52.071, lon: -1.016, viewers: 0 },
+  { id: "m32", sport: "f1", league: "Formula 1", home: "Monaco GP", away: "Monte Carlo", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Race Sun 15:00", region: "Monaco", city: "Monte Carlo", lat: 43.738, lon: 7.424, viewers: 0 },
+  // ---- Baseball ----
+  { id: "m33", sport: "baseball", league: "MLB", home: "Yankees", away: "Red Sox", status: "FINISHED", scoreHome: "5", scoreAway: "3", clock: "Final", region: "USA", city: "New York", lat: 40.829, lon: -73.926, viewers: 612000 },
+  { id: "m34", sport: "baseball", league: "MLB", home: "Dodgers", away: "Giants", status: "LIVE", scoreHome: "4", scoreAway: "2", clock: "Inn 6", region: "USA", city: "Los Angeles", lat: 34.073, lon: -118.24, viewers: 458000 },
 ];
 
 const HIGHLIGHTS = [
@@ -146,9 +179,12 @@ const PLAYERS = [
 // Playable mini-games. Points earned convert to wallet money.
 const GAMES = [
   { id: "reaction", name: "Reaction Rush", icon: "⚡", tagline: "Tap the instant it turns green", color: "#22c55e", maxPoints: 300, how: "Wait for green, then tap fast. Faster = more points." },
-  { id: "quiz", name: "Sports IQ", icon: "🧠", tagline: "5 quick sports trivia questions", color: "#6366f1", maxPoints: 500, how: "Answer correctly for 100 points each." },
+  { id: "quiz", name: "Sports IQ", icon: "🧠", tagline: "5 random sports trivia questions", color: "#6366f1", maxPoints: 500, how: "Answer correctly for 100 points each." },
   { id: "target", name: "Target Blitz", icon: "🎯", tagline: "Hit as many targets in 20s", color: "#f97316", maxPoints: 400, how: "Tap moving targets — 20 points per hit." },
   { id: "streak", name: "Score Streak", icon: "🃏", tagline: "Remember the winning sequence", color: "#ec4899", maxPoints: 350, how: "Repeat the flashing pattern to score." },
+  { id: "penalty", name: "Penalty Shootout", icon: "⚽", tagline: "Beat the keeper from the spot", color: "#0ea5e9", maxPoints: 400, how: "Pick a corner and out-guess the keeper. 80 points per goal." },
+  { id: "memory", name: "Memory Match", icon: "🧩", tagline: "Flip and match the sport pairs", color: "#14b8a6", maxPoints: 400, how: "Match all pairs in as few moves as possible." },
+  { id: "higherlower", name: "Stat Attack", icon: "📈", tagline: "Higher or lower? Guess the stat", color: "#f59e0b", maxPoints: 450, how: "Guess if the next sports stat is higher or lower. 75 points each." },
 ];
 
 // Trivia bank for the quiz game (server is source of truth for scoring).
@@ -163,15 +199,24 @@ const QUIZ = [
   { q: "What is a score of zero called in tennis?", options: ["Nil", "Love", "Duck", "Blank"], answer: 1 },
   { q: "How long is a standard football match (excl. stoppage)?", options: ["60 min", "80 min", "90 min", "100 min"], answer: 2 },
   { q: "Which sport uses a shuttlecock?", options: ["Squash", "Badminton", "Table Tennis", "Cricket"], answer: 1 },
+  { q: "How many points is a rugby try worth (union)?", options: ["3", "4", "5", "6"], answer: 2 },
+  { q: "In which sport would you perform a 'slam dunk'?", options: ["Volleyball", "Basketball", "Handball", "Netball"], answer: 1 },
+  { q: "How many Grand Slam tennis tournaments are there each year?", options: ["2", "3", "4", "5"], answer: 2 },
+  { q: "Which country hosts the IPL cricket league?", options: ["Australia", "England", "India", "South Africa"], answer: 2 },
+  { q: "How many players are in a basketball team on court?", options: ["4", "5", "6", "7"], answer: 1 },
+  { q: "A hat-trick in football means scoring how many goals?", options: ["2", "3", "4", "5"], answer: 1 },
+  { q: "Which sport is known as 'the beautiful game'?", options: ["Cricket", "Football", "Tennis", "Hockey"], answer: 1 },
+  { q: "In Formula 1, what colour flag signals the end of a race?", options: ["Red", "Yellow", "Chequered", "Green"], answer: 2 },
 ];
 
-// Merchants the wallet can spend at, grouped by category.
+// Merchants the wallet can spend at, grouped by category — real-world brands.
 const SPEND_CATEGORIES = [
-  { id: "food", name: "Food & Dining", icon: "🍔", merchants: ["Sunrise Cafe", "Biryani Point", "Pizza Junction", "Chai Nagar"] },
-  { id: "groceries", name: "Groceries", icon: "🛒", merchants: ["FreshMart", "DailyBasket", "GreenGrocer", "SuperSave"] },
-  { id: "goods", name: "Shopping & Goods", icon: "🛍️", merchants: ["StyleHub", "GadgetWorld", "HomeNeeds", "SportGear"] },
-  { id: "bills", name: "Bills & Utilities", icon: "🧾", merchants: ["PowerBill", "WaterWorks", "GasConnect", "Broadband+"] },
-  { id: "recharge", name: "Recharge & Travel", icon: "🚌", merchants: ["MobileTopup", "MetroCard", "CabRide", "FuelPay"] },
+  { id: "shopping", name: "Online Shopping", icon: "🛍️", merchants: ["Amazon", "Flipkart", "Myntra", "Ajio", "Meesho", "Nykaa"] },
+  { id: "travel", name: "Travel & Stays", icon: "✈️", merchants: ["Goibibo", "MakeMyTrip", "IRCTC", "Ola", "Uber", "RedBus"] },
+  { id: "food", name: "Food Delivery", icon: "🍔", merchants: ["Swiggy", "Zomato", "Domino's", "KFC", "McDonald's", "EatFit"] },
+  { id: "groceries", name: "Groceries", icon: "🛒", merchants: ["BigBasket", "Blinkit", "Zepto", "JioMart", "DMart", "Instamart"] },
+  { id: "entertainment", name: "Entertainment", icon: "🎬", merchants: ["Netflix", "Spotify", "Disney+ Hotstar", "BookMyShow", "Prime Video", "YouTube Premium"] },
+  { id: "bills", name: "Bills & Recharge", icon: "🧾", merchants: ["Jio Recharge", "Airtel", "Electricity Bill", "DTH / Cable", "Broadband", "Gas Booking"] },
 ];
 
 /* ============================================================
@@ -436,17 +481,28 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { games: GAMES, pointsPerRupee: POINTS_PER_RUPEE, dailyCap: DAILY_POINTS_CAP });
     }
     if (pathname === "/api/games/quiz") {
-      const qs = QUIZ.slice(0, 5).map((x, i) => ({ i, q: x.q, options: x.options }));
-      return sendJson(res, 200, { questions: qs });
+      // Pick 5 random questions; return their real ids so scoring stays honest.
+      const idxs = QUIZ.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, 5);
+      const qs = idxs.map((id) => ({ id, q: QUIZ[id].q, options: QUIZ[id].options }));
+      return sendJson(res, 200, { questions: qs, qids: idxs });
     }
     if (pathname === "/api/games/quiz/score" && req.method === "POST") {
       const body = await readBody(req);
       const answers = Array.isArray(body.answers) ? body.answers : [];
+      const qids = Array.isArray(body.qids) ? body.qids : [];
       let correct = 0;
-      QUIZ.slice(0, 5).forEach((x, i) => {
-        if (Number(answers[i]) === x.answer) correct += 1;
-      });
-      return sendJson(res, 200, { correct, total: 5, score: correct * 100 });
+      const total = Math.min(5, qids.length || 5);
+      if (qids.length) {
+        qids.slice(0, 5).forEach((qid, k) => {
+          const q = QUIZ[Number(qid)];
+          if (q && Number(answers[k]) === q.answer) correct += 1;
+        });
+      } else {
+        QUIZ.slice(0, 5).forEach((x, i) => {
+          if (Number(answers[i]) === x.answer) correct += 1;
+        });
+      }
+      return sendJson(res, 200, { correct, total, score: correct * 100 });
     }
     if (pathname === "/api/games/score" && req.method === "POST") {
       const body = await readBody(req);
