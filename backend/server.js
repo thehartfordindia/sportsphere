@@ -25,6 +25,7 @@ const crypto = require("crypto");
 const store = require("./store");
 const sportsdata = require("./sportsdata");
 const lineups = require("./lineups");
+const performance = require("./performance");
 
 const PORT = Number(process.env.PORT) || 8795;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "change-me";
@@ -627,6 +628,13 @@ const server = http.createServer(async (req, res) => {
       let list = PLAYERS.map((p) => ({ id: p.id, name: p.name, sport: p.sport, country: p.country, role: p.role, rating: p.rating, tagline: p.tagline, team: p.team }));
       if (sport && sport !== "all") list = list.filter((p) => p.sport === sport);
       return sendJson(res, 200, { players: list });
+    }
+
+    if (pathname.startsWith("/api/players/") && pathname.endsWith("/performance") && req.method === "GET") {
+      const id = decodeURIComponent(pathname.split("/")[3] || "");
+      const found = PLAYERS.find((p) => p.id === id);
+      if (!found) return sendJson(res, 404, { error: "Player not found" });
+      return sendJson(res, 200, performance.buildPerformance(found));
     }
 
     if (pathname.startsWith("/api/players/") && req.method === "GET") {
