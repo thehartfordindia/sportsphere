@@ -1,0 +1,20 @@
+{
+  "name": "SportSphere — Live Sports, Play & Earn",
+  "short_name": "SportSphere",
+  "description": "Live multi-sport scores, star players, play-to-earn games and a demo wallet with UPI and cashback.",
+  "start_url": "./?v=8",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#080b16",
+  "theme_color": "#5b54f0",
+  "categories": ["sports", "entertainment", "games"],
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
