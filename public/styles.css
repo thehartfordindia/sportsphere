@@ -1024,6 +1024,76 @@ a { color: var(--primary); }
   .pm-game-date { display: none; }
 }
 
+/* ===================== Head-to-head compare ===================== */
+.compare-btn {
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.compare-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(91, 84, 240, 0.35); }
+.cmp-head { margin-bottom: 0.9rem; }
+.cmp-head h3 { margin: 0 0 0.2rem; }
+.cmp-pickers {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 1rem;
+}
+.cmp-vs { font-weight: 800; color: var(--ink-faint); font-size: 0.85rem; }
+.cmp-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; margin-bottom: 1.1rem; }
+.cmp-card {
+  position: relative;
+  background: var(--surface-2);
+  border: 2px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 1rem 0.8rem;
+  text-align: center;
+}
+.cmp-card.win { border-color: var(--primary); background: rgba(91, 84, 240, 0.08); }
+.cmp-crown { position: absolute; top: -12px; left: 50%; transform: translateX(-50%); font-size: 1.3rem; }
+.cmp-avatar {
+  width: 54px; height: 54px; margin: 0 auto 0.5rem;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-weight: 800; color: #fff;
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+}
+.cmp-name { font-weight: 800; color: var(--ink); }
+.cmp-role { font-size: 0.8rem; color: var(--ink-faint); margin-top: 2px; }
+.cmp-momentum { font-size: 0.82rem; color: var(--ink-soft); margin-top: 0.4rem; }
+.cmp-metrics { display: flex; flex-direction: column; gap: 0.8rem; margin-bottom: 1rem; }
+.cmp-metric-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+.cmp-label { font-size: 0.8rem; color: var(--ink-faint); text-align: center; flex: 1; }
+.cmp-val { font-weight: 800; color: var(--ink-soft); min-width: 44px; }
+.cmp-val:last-child { text-align: right; }
+.cmp-val.win { color: var(--primary); }
+.cmp-bar { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-3); }
+.cmp-bar-a { background: rgba(91, 84, 240, 0.35); }
+.cmp-bar-b { background: rgba(249, 115, 22, 0.35); }
+.cmp-bar-a.win { background: var(--primary); }
+.cmp-bar-b.win { background: var(--accent); }
+.cmp-verdict {
+  text-align: center;
+  font-weight: 700;
+  color: var(--ink);
+  background: var(--surface-2);
+  border-radius: var(--radius-sm);
+  padding: 0.8rem;
+}
+.cmp-note { text-align: center; font-size: 0.8rem; color: var(--ink-faint); margin: 0.6rem 0 0; }
+@media (max-width: 480px) {
+  .cmp-pickers { grid-template-columns: 1fr; }
+  .cmp-vs { display: none; }
+}
+
 /* ===================== Profile editor ===================== */
 .profile-head {
   display: flex;
