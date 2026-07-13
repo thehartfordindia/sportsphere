@@ -944,3 +944,38 @@ a { color: var(--primary); }
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .auth-guest:hover { background: var(--surface-2); border-color: var(--primary); color: var(--ink); }
+
+/* ===================== Profile editor ===================== */
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.profile-name { font-size: 1.15rem; font-weight: 800; color: var(--ink); }
+.profile-handle { font-size: 0.85rem; color: var(--ink-faint); }
+.profile-form { display: flex; flex-direction: column; }
+.profile-label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+.profile-dim { color: var(--ink-faint); font-weight: 500; }
+.profile-form input {
+  width: 100%;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  padding: 0.7rem 0.85rem;
+  border-radius: 12px;
+  margin-bottom: 0.9rem;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.profile-form input:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(91, 84, 240, 0.14);
+}
+.profile-form .pay-select { margin-bottom: 0.9rem; }
