@@ -398,6 +398,7 @@ async function openPlayer(id) {
     </div>
     <div class="pm-tabs">
       <button class="pm-tab active" data-pane="overview">Overview</button>
+      <button class="pm-tab" data-pane="form">Form</button>
       <button class="pm-tab" data-pane="career">Career</button>
       <button class="pm-tab" data-pane="personal">Personal</button>
       <button class="pm-tab" data-pane="social">Social</button>
@@ -405,6 +406,9 @@ async function openPlayer(id) {
     <div class="pm-pane active" data-pane="overview">
       <p class="pm-bio">${escapeHtml(p.bio || "")}</p>
       ${infoRows.map(([k, v]) => `<div class="pm-info-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`).join("")}
+    </div>
+    <div class="pm-pane" data-pane="form">
+      <div class="pm-form-body" id="pmFormBody"><div class="pm-form-loading">Loading recent form…</div></div>
     </div>
     <div class="pm-pane" data-pane="career">
       <div class="pm-stats">${careerStats || "<p class='section-sub'>No stats.</p>"}</div>
@@ -435,8 +439,84 @@ async function openPlayer(id) {
       const pane = tab.getAttribute("data-pane");
       $("playerModalBody").querySelectorAll(".pm-tab").forEach((t) => t.classList.toggle("active", t === tab));
       $("playerModalBody").querySelectorAll(".pm-pane").forEach((pn) => pn.classList.toggle("active", pn.getAttribute("data-pane") === pane));
+      if (pane === "form") loadPlayerForm(id);
     });
   });
+}
+
+/* Lazy-load & render a player's recent form / performance. */
+const _formCache = {};
+async function loadPlayerForm(id) {
+  const body = $("pmFormBody");
+  if (!body) return;
+  if (_formCache[id]) { body.innerHTML = renderForm(_formCache[id]); return; }
+  try {
+    const perf = await api(`/api/players/${encodeURIComponent(id)}/performance`);
+    _formCache[id] = perf;
+    body.innerHTML = renderForm(perf);
+  } catch (e) {
+    body.innerHTML = `<p class="section-sub">Couldn't load form.</p>`;
+  }
+}
+function sparkline(trend) {
+  const max = 10, min = 0, w = 100, h = 34, n = trend.length;
+  if (n < 2) return "";
+  const pts = trend.map((v, i) => {
+    const x = (i / (n - 1)) * w;
+    const y = h - ((v - min) / (max - min)) * h;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const area = `0,${h} ` + pts.join(" ") + ` ${w},${h}`;
+  return `
+    <svg class="pm-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+      <polygon points="${area}" fill="url(#sparkfill)"></polygon>
+      <polyline points="${pts.join(" ")}" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"></polyline>
+      <defs><linearGradient id="sparkfill" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="var(--primary)" stop-opacity="0.28"></stop>
+        <stop offset="1" stop-color="var(--primary)" stop-opacity="0"></stop>
+      </linearGradient></defs>
+    </svg>`;
+}
+function ratingClass(r) {
+  if (r >= 7.5) return "hot";
+  if (r >= 6) return "good";
+  if (r >= 4.5) return "ok";
+  return "low";
+}
+function renderForm(perf) {
+  const rec = perf.record || { wins: 0, losses: 0, draws: 0 };
+  const heat = (perf.heat || []).map((r) => `<span class="pm-heat ${r === "W" ? "w" : r === "L" ? "l" : "d"}">${r}</span>`).join("");
+  const games = (perf.games || []).map((g) => `
+    <div class="pm-game">
+      <span class="pm-game-res ${g.result === "W" ? "w" : g.result === "L" ? "l" : "d"}">${g.result}</span>
+      <div class="pm-game-main">
+        <div class="pm-game-opp">${escapeHtml(g.placeLabel ? g.placeLabel + " · " : "")}${escapeHtml(g.opponent)}</div>
+        <div class="pm-game-line">${escapeHtml(g.line)}</div>
+      </div>
+      <span class="pm-game-date">${escapeHtml(g.date)}</span>
+      <span class="pm-rating ${ratingClass(g.rating)}">${g.rating.toFixed(1)}</span>
+    </div>`).join("");
+  const season = (perf.season || []).map((s) => `<div class="pm-stat"><b>${escapeHtml(String(s.value))}</b><span>${escapeHtml(s.label)}</span></div>`).join("");
+  return `
+    <div class="pm-momentum">
+      <div class="pm-momentum-left">
+        <span class="pm-momentum-ico">${perf.momentumIcon || "📊"}</span>
+        <div>
+          <div class="pm-momentum-label">${escapeHtml(perf.momentum || "Form")}</div>
+          <div class="pm-momentum-sub">Avg rating ${Number(perf.recentAvg || 0).toFixed(1)} · last 7</div>
+        </div>
+      </div>
+      <div class="pm-record">
+        <span class="pm-rec w">${rec.wins}W</span>
+        <span class="pm-rec d">${rec.draws}D</span>
+        <span class="pm-rec l">${rec.losses}L</span>
+      </div>
+    </div>
+    <div class="pm-spark-wrap">${sparkline(perf.trend || [])}<div class="pm-heat-row">${heat}</div></div>
+    <h4 class="pm-form-h">Recent matches</h4>
+    <div class="pm-games">${games || "<p class='section-sub'>No recent matches.</p>"}</div>
+    <h4 class="pm-form-h">This season</h4>
+    <div class="pm-stats">${season || "<p class='section-sub'>No season data.</p>"}</div>`;
 }
 function handleFrom(url) {
   try {
