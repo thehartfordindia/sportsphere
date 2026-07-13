@@ -8,7 +8,7 @@
       name="description"
       content="Live multi-sport scores, star player profiles with lifestyle & socials, play-to-earn games, and a demo wallet you can spend on food, groceries and more."
     />
-    <link rel="stylesheet" href="styles.css?v=3" />
+    <link rel="stylesheet" href="styles.css?v=4" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
@@ -182,9 +182,11 @@
             <h3>➕ Add money</h3>
             <input id="addAmount" type="number" min="1" placeholder="Amount (₹)" />
             <select id="addMethod">
-              <option value="UPI">UPI</option>
-              <option value="Card">Card</option>
-              <option value="NetBanking">Net Banking</option>
+              <option value="UPI">UPI (GPay / PhonePe / Paytm)</option>
+              <option value="Credit Card">Credit Card</option>
+              <option value="Debit Card">Debit Card</option>
+              <option value="Net Banking">Net Banking</option>
+              <option value="Reward Points">Reward Points</option>
             </select>
             <button class="btn btn-primary btn-block" type="submit">Add</button>
           </form>
@@ -223,6 +225,6 @@
       <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=3" defer></script>
+    <script src="app.js?v=4" defer></script>
   </body>
 </html>
