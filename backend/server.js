@@ -333,6 +333,22 @@ const GAMES = [
   { id: "higherlower", name: "Stat Attack", icon: "📈", tagline: "Higher or lower? Guess the stat", color: "#f59e0b", maxPoints: 450, how: "Guess if the next sports stat is higher or lower. 75 points each." },
 ];
 
+// Demo competitors so the leaderboard always feels populated (ids never collide with real handles: they contain a space-free bot marker).
+const DEMO_LEADERS = [
+  { id: "__bot_arjun", name: "Arjun M.", points: 4820, games: 61, real: false },
+  { id: "__bot_sara", name: "Sara K.", points: 4310, games: 54, real: false },
+  { id: "__bot_rahul", name: "Rahul V.", points: 3990, games: 49, real: false },
+  { id: "__bot_neha", name: "Neha R.", points: 3555, games: 47, real: false },
+  { id: "__bot_dev", name: "Dev P.", points: 3120, games: 41, real: false },
+  { id: "__bot_ananya", name: "Ananya S.", points: 2740, games: 38, real: false },
+  { id: "__bot_karan", name: "Karan T.", points: 2360, games: 33, real: false },
+  { id: "__bot_meera", name: "Meera J.", points: 1980, games: 29, real: false },
+  { id: "__bot_vikram", name: "Vikram N.", points: 1610, games: 24, real: false },
+  { id: "__bot_priya", name: "Priya G.", points: 1285, games: 20, real: false },
+  { id: "__bot_rohan", name: "Rohan B.", points: 940, games: 15, real: false },
+  { id: "__bot_isha", name: "Isha D.", points: 615, games: 11, real: false },
+];
+
 // Trivia bank for the quiz game (server is source of truth for scoring).
 const QUIZ = [
   { q: "How many players are on a football (soccer) pitch per team?", options: ["9", "10", "11", "12"], answer: 2 },
@@ -704,6 +720,40 @@ const server = http.createServer(async (req, res) => {
     if (pathname === "/api/games") {
       return sendJson(res, 200, { games: GAMES, pointsPerRupee: POINTS_PER_RUPEE, dailyCap: DAILY_POINTS_CAP });
     }
+
+    // ---- Leaderboard: rank players by points earned ----
+    if (pathname === "/api/leaderboard" && req.method === "GET") {
+      const meId = cleanText(query.get("userId") || "", 60);
+      const wallets = await store.listWallets();
+      // Build real-player rows, enriching display names from the users store.
+      const real = await Promise.all(
+        wallets.map(async (w) => {
+          const points = Number((w.wallet && w.wallet.points) || 0);
+          const games = Number((w.wallet && w.wallet.gamesPlayed) || 0);
+          let name = w.id;
+          try {
+            const u = await store.getUser(w.id);
+            if (u && u.name) name = u.name;
+          } catch (_e) {}
+          return { id: w.id, name, points, games, real: true };
+        })
+      );
+      // Seed some demo competitors so the board always feels alive.
+      const rows = real.concat(DEMO_LEADERS.filter((d) => !real.some((r) => r.id === d.id)));
+      rows.sort((a, b) => b.points - a.points || b.games - a.games || a.name.localeCompare(b.name));
+      const ranked = rows.map((r, i) => ({
+        rank: i + 1,
+        name: r.name,
+        points: r.points,
+        games: r.games,
+        rupees: Math.floor(r.points / POINTS_PER_RUPEE),
+        you: Boolean(meId) && r.id === meId,
+      }));
+      const top = ranked.slice(0, 15);
+      const me = ranked.find((r) => r.you) || null;
+      return sendJson(res, 200, { top, me, total: ranked.length });
+    }
+
     if (pathname === "/api/games/quiz") {
       // Pick 5 random questions; return their real ids so scoring stays honest.
       const idxs = QUIZ.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, 5);
