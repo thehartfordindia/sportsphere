@@ -163,7 +163,7 @@ function renderMatches() {
       const canWatch = m.status === "LIVE";
       const sIcon = (sportById(m.sport) || {}).icon || "🎽";
       return `
-      <div class="match-card">
+      <div class="match-card" data-match="${m.id}">
         <div class="match-head">
           <span class="league">${sIcon} ${escapeHtml(m.league)}</span>
           <span class="badge ${m.status}">${m.status}</span>
@@ -180,13 +180,22 @@ function renderMatches() {
         </div>
         <div class="match-foot">
           <span class="match-meta"><span>⏱️ ${escapeHtml(m.clock)}</span>${viewers ? `<span>${viewers}</span>` : ""}${dist ? `<span>${dist}</span>` : ""}</span>
-          ${canWatch ? `<button class="watch-btn" data-watch="${m.id}">▶ Watch &amp; earn</button>` : `<span class="match-meta"><span>${escapeHtml(m.city || "")}</span></span>`}
+          <span class="match-actions">
+            <button class="squad-btn" data-squad="${m.id}">👥 Squads</button>
+            ${canWatch ? `<button class="watch-btn" data-watch="${m.id}">▶ Watch &amp; earn</button>` : `<span class="match-meta"><span>${escapeHtml(m.city || "")}</span></span>`}
+          </span>
         </div>
       </div>`;
     })
     .join("");
   grid.querySelectorAll("[data-watch]").forEach((b) =>
-    b.addEventListener("click", () => openWatch(b.getAttribute("data-watch")))
+    b.addEventListener("click", (e) => { e.stopPropagation(); openWatch(b.getAttribute("data-watch")); })
+  );
+  grid.querySelectorAll("[data-squad]").forEach((b) =>
+    b.addEventListener("click", (e) => { e.stopPropagation(); openMatch(b.getAttribute("data-squad")); })
+  );
+  grid.querySelectorAll("[data-match]").forEach((c) =>
+    c.addEventListener("click", () => openMatch(c.getAttribute("data-match")))
   );
 }
 function renderTicker() {
@@ -201,6 +210,80 @@ function renderTicker() {
     .join("");
   track.innerHTML = items + items; // duplicate for seamless loop
   $("ticker").hidden = false;
+}
+
+/* ---------- match lineups / squads ---------- */
+async function openMatch(id) {
+  $("matchModalBody").innerHTML = `<button class="modal-close" data-mclose>✕</button><div style="padding:2.5rem;text-align:center">Loading squads…</div>`;
+  $("matchModal").hidden = false;
+  $("matchModalBody").querySelector("[data-mclose]").addEventListener("click", () => ($("matchModal").hidden = true));
+  let d;
+  try {
+    d = await api(`/api/matches/${encodeURIComponent(id)}/lineup`);
+  } catch (e) {
+    $("matchModalBody").innerHTML = `<button class="modal-close" data-mclose>✕</button><p style="padding:2rem">Couldn't load squads for this match.</p>`;
+    $("matchModalBody").querySelector("[data-mclose]").addEventListener("click", () => ($("matchModal").hidden = true));
+    return;
+  }
+  const m = d.match || {};
+  const sIcon = (sportById(m.sport) || {}).icon || "🎽";
+  const head = `
+    <div class="match-modal-head">
+      <span class="mm-league">${sIcon} ${escapeHtml(m.league || "")}</span>
+      <span class="badge ${m.status}">${escapeHtml(m.status || "")}</span>
+    </div>
+    <h3 class="mm-title">${escapeHtml(m.home || "")} <span class="mm-vs">vs</span> ${escapeHtml(m.away || "")}</h3>`;
+
+  let body = "";
+  if (d.format === "team") {
+    body = `<div class="lineup-wrap">${teamColumn(d.home)}${teamColumn(d.away)}</div>`;
+  } else if (d.format === "individual") {
+    body = `<div class="lineup-wrap">${athleteColumn(m.home, d.home)}${athleteColumn(m.away, d.away)}</div>`;
+  } else if (d.format === "grid") {
+    body = `
+      <p class="section-sub" style="margin:.2rem 0 .6rem">🏁 Starting grid · ${escapeHtml(d.circuit || "")}</p>
+      <div class="grid-list">
+        ${d.grid.map((g) => `
+          <div class="grid-row">
+            <span class="grid-pos">P${g.pos}</span>
+            <span class="grid-driver">${escapeHtml(g.name)}</span>
+            <span class="grid-team">${escapeHtml(g.team)}</span>
+          </div>`).join("")}
+      </div>`;
+  } else {
+    body = `<p class="section-sub" style="padding:1rem">Lineup not available for this match.</p>`;
+  }
+
+  $("matchModalBody").innerHTML = `<button class="modal-close" data-mclose>✕</button>${head}${body}`;
+  $("matchModalBody").querySelector("[data-mclose]").addEventListener("click", () => ($("matchModal").hidden = true));
+}
+function playerRow(p) {
+  return `
+    <li class="lu-row">
+      <span class="lu-num">${p.number != null ? p.number : ""}</span>
+      <span class="lu-name">${escapeHtml(p.name)}${p.captain ? ` <span class="lu-cap">C</span>` : ""}</span>
+      <span class="lu-pos">${escapeHtml(p.pos)}</span>
+    </li>`;
+}
+function teamColumn(side) {
+  return `
+    <div class="lineup-col">
+      <div class="lu-team">${escapeHtml(side.team)}</div>
+      <div class="lu-formation">${escapeHtml(side.formation || "")}</div>
+      <ul class="lu-list">${side.starting.map(playerRow).join("")}</ul>
+      ${side.bench && side.bench.length ? `<div class="lu-bench-label">Bench</div><ul class="lu-list bench">${side.bench.map(playerRow).join("")}</ul>` : ""}
+    </div>`;
+}
+function athleteColumn(name, side) {
+  return `
+    <div class="lineup-col">
+      <div class="lu-team">${escapeHtml(name)}</div>
+      <div class="lu-athlete-ico">${initials(name)}</div>
+      <div class="lu-bench-label">Support team</div>
+      <ul class="lu-list">
+        ${side.support.map((s) => `<li class="lu-row"><span class="lu-name">${escapeHtml(s.role)}</span></li>`).join("")}
+      </ul>
+    </div>`;
 }
 
 /* ---------- highlights ---------- */
@@ -945,6 +1028,14 @@ function openPay(catId) {
   if (!cat) return;
   let selected = cat.merchants[0];
   const payMethods = ["Wallet Balance", "UPI", "Credit Card", "Debit Card", "Net Banking"];
+  const upiApps = [
+    { id: "gpay", name: "Google Pay", icon: "🟢" },
+    { id: "phonepe", name: "PhonePe", icon: "🟣" },
+    { id: "paytm", name: "Paytm", icon: "🔵" },
+    { id: "bhim", name: "BHIM UPI", icon: "🟠" },
+    { id: "amazonpay", name: "Amazon Pay", icon: "🟡" },
+  ];
+  let selectedUpi = upiApps[0].name;
   $("payModalBody").innerHTML = `
     <button class="modal-close" data-payclose>✕</button>
     <div class="game-modal-head"><span class="game-modal-ico">${cat.icon}</span><div><h3>${escapeHtml(cat.name)}</h3><div class="section-sub">Pay a merchant · 2% cashback</div></div></div>
@@ -957,6 +1048,12 @@ function openPay(catId) {
       <select id="payMethod" class="pay-select">
         ${payMethods.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("")}
       </select>
+      <div class="pay-upi" id="payUpiRow">
+        <label class="pay-field-label">Choose UPI app</label>
+        <div class="pay-upi-apps" id="payUpiApps">
+          ${upiApps.map((a, i) => `<button type="button" class="pay-upi-app ${i === 0 ? "active" : ""}" data-upi="${escapeHtml(a.name)}"><span>${a.icon}</span>${escapeHtml(a.name)}</button>`).join("")}
+        </div>
+      </div>
       <input id="payAmount" type="number" min="1" placeholder="Amount (₹)" class="pay-amount-input" />
       <div class="pay-quick" id="payQuick">
         ${[100, 250, 500, 1000].map((v) => `<button type="button" class="pay-chip" data-amt="${v}">₹${v}</button>`).join("")}
@@ -972,13 +1069,24 @@ function openPay(catId) {
       $("payMerchants").querySelectorAll(".pay-merchant").forEach((x) => x.classList.toggle("active", x === b));
     })
   );
+  const upiRow = $("payUpiRow");
+  const syncUpiRow = () => { upiRow.style.display = $("payMethod").value === "UPI" ? "block" : "none"; };
+  syncUpiRow();
+  $("payMethod").addEventListener("change", syncUpiRow);
+  $("payUpiApps").querySelectorAll("[data-upi]").forEach((b) =>
+    b.addEventListener("click", () => {
+      selectedUpi = b.getAttribute("data-upi");
+      $("payUpiApps").querySelectorAll(".pay-upi-app").forEach((x) => x.classList.toggle("active", x === b));
+    })
+  );
   $("payQuick").querySelectorAll("[data-amt]").forEach((b) =>
     b.addEventListener("click", () => { $("payAmount").value = b.getAttribute("data-amt"); })
   );
   $("payForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const amount = Number($("payAmount").value);
-    const method = $("payMethod").value;
+    const rawMethod = $("payMethod").value;
+    const method = rawMethod === "UPI" ? `UPI · ${selectedUpi}` : rawMethod;
     const msg = $("payMsg");
     if (!amount || amount <= 0) { msg.textContent = "Enter a valid amount."; msg.className = "wallet-msg err"; return; }
     try {
@@ -1099,7 +1207,7 @@ function bindEvents() {
     }
   });
 
-  ["playerModal", "watchModal", "payModal", "gameModal"].forEach((id) => {
+  ["playerModal", "watchModal", "payModal", "gameModal", "matchModal"].forEach((id) => {
     $(id).addEventListener("click", (e) => {
       if (e.target.id === id) {
         if (id === "watchModal") closeWatch();
