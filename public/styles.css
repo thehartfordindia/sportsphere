@@ -323,6 +323,46 @@ a { color: var(--primary); }
   padding: 0.4rem 0.8rem; border-radius: 999px; font-weight: 800; font-size: 0.78rem; cursor: pointer; white-space: nowrap;
 }
 .watch-btn:hover { background: var(--primary); color: #fff; }
+.match-card { cursor: pointer; }
+.match-actions { display: flex; align-items: center; gap: 0.45rem; }
+.squad-btn {
+  border: 1px solid var(--line); background: var(--surface-2); color: var(--ink);
+  padding: 0.4rem 0.75rem; border-radius: 999px; font-weight: 800; font-size: 0.78rem; cursor: pointer; white-space: nowrap;
+}
+.squad-btn:hover { border-color: var(--primary); color: var(--primary); }
+
+/* ===== Match squads / lineup modal ===== */
+.match-modal-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin: 0.2rem 0 0.4rem; }
+.mm-league { font-weight: 700; color: var(--ink-soft); font-size: 0.9rem; }
+.mm-title { margin: 0 0 0.9rem; font-size: 1.25rem; }
+.mm-vs { color: var(--ink-soft); font-weight: 600; font-size: 0.9rem; }
+.lineup-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.lineup-col { background: var(--bg); border: 1px solid var(--line); border-radius: 14px; padding: 0.9rem; }
+.lu-team { font-weight: 800; font-size: 1.02rem; }
+.lu-formation { font-size: 0.78rem; color: var(--ink-soft); margin-bottom: 0.6rem; font-weight: 600; }
+.lu-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.28rem; }
+.lu-list.bench { opacity: 0.85; }
+.lu-row { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 0.5rem; font-size: 0.86rem; padding: 0.28rem 0.35rem; border-radius: 8px; }
+.lu-row:hover { background: var(--surface-2); }
+.lu-num { font-weight: 800; color: var(--primary); font-variant-numeric: tabular-nums; text-align: center; }
+.lu-name { font-weight: 600; }
+.lu-cap { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; border-radius: 4px; background: var(--primary); color: #fff; font-size: 0.62rem; font-weight: 800; vertical-align: middle; }
+.lu-pos { font-size: 0.72rem; color: var(--ink-soft); font-weight: 600; white-space: nowrap; }
+.lu-bench-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink-soft); font-weight: 700; margin: 0.7rem 0 0.35rem; }
+.lu-athlete-ico { width: 60px; height: 60px; border-radius: 50%; background: color-mix(in srgb, var(--primary) 16%, transparent); color: var(--primary); display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 1.3rem; margin: 0.5rem 0; }
+.grid-list { display: flex; flex-direction: column; gap: 0.35rem; }
+.grid-row { display: grid; grid-template-columns: 42px 1fr auto; align-items: center; gap: 0.6rem; padding: 0.5rem 0.7rem; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; }
+.grid-pos { font-weight: 800; color: var(--primary); }
+.grid-driver { font-weight: 700; font-size: 0.9rem; }
+.grid-team { font-size: 0.78rem; color: var(--ink-soft); font-weight: 600; }
+@media (max-width: 560px) { .lineup-wrap { grid-template-columns: 1fr; } }
+
+/* ===== UPI app picker (pay modal) ===== */
+.pay-upi { margin-bottom: 0.7rem; }
+.pay-upi-apps { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.pay-upi-app { display: inline-flex; align-items: center; gap: 0.4rem; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 12px; padding: 0.5rem 0.75rem; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
+.pay-upi-app.active { border-color: var(--primary); color: var(--primary); background: color-mix(in srgb, var(--primary) 10%, transparent); }
+.pay-upi-app:hover { border-color: var(--primary); }
 
 /* ===== Highlights ===== */
 .highlight-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.1rem; }
