@@ -1137,13 +1137,56 @@ a { color: var(--primary); }
   .cmp-vs { display: none; }
 }
 
+/* ===================== Daily check-in ===================== */
+.checkin-card {
+  margin: 1.4rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem 1.3rem;
+  box-shadow: var(--shadow-sm);
+}
+.checkin-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 0.9rem; }
+.checkin-title { margin: 0; font-size: 1.05rem; }
+.checkin-sub { margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
+.checkin-flame {
+  flex: none; font-size: 0.9rem; font-weight: 700; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--border);
+  padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+}
+.checkin-flame b { color: var(--live); }
+.checkin-days {
+  display: grid; grid-template-columns: repeat(7, 1fr);
+  gap: 8px; margin-bottom: 1.1rem;
+}
+.ci-day {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  padding: 10px 4px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface-2);
+  text-align: center; position: relative;
+}
+.ci-day-n { font-size: 0.66rem; color: var(--ink-faint); font-weight: 600; }
+.ci-day-pts { font-size: 0.9rem; font-weight: 800; color: var(--ink); }
+.ci-day.done { background: color-mix(in srgb, var(--ok) 16%, var(--surface)); border-color: var(--ok); }
+.ci-day.done .ci-day-pts { color: var(--ok); }
+.ci-day.today {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--primary) 35%, transparent);
+  background: color-mix(in srgb, var(--primary) 12%, var(--surface));
+}
+.ci-day.today .ci-day-pts { color: var(--primary); }
+.ci-day.locked { opacity: 0.75; }
+.ci-day.jackpot .ci-day-n::after { content: " 🏆"; }
+.ci-day.jackpot { border-style: dashed; }
+
 /* ===================== Leaderboard ===================== */
 .leaderboard {
   margin-top: 1.6rem;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 1.1rem 1.2rem 1.3rem;
+  padding: 1.2rem 1.2rem 1rem;
+  box-shadow: var(--shadow-sm);
 }
 .lb-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 0.9rem; }
 .lb-title { margin: 0 0 0.15rem; }
