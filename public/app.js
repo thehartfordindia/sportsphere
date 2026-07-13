@@ -16,6 +16,7 @@ const state = {
   userId: localStorage.getItem("ss_user") || "guest",
   name: localStorage.getItem("ss_name") || "Guest",
   authed: localStorage.getItem("ss_authed") === "1",
+  favSport: localStorage.getItem("ss_fav") || "all",
   wallet: null,
   games: [],
   pointsPerRupee: 100,
@@ -1205,7 +1206,12 @@ async function submitAuth() {
     localStorage.setItem("ss_user", state.userId);
     localStorage.setItem("ss_name", state.name);
     localStorage.setItem("ss_authed", "1");
+    if (r.favSport) {
+      state.favSport = r.favSport;
+      localStorage.setItem("ss_fav", r.favSport);
+    }
     updateAccountUI();
+    applyFavSport();
     closeAuth();
     await refreshWallet();
     toast(authMode === "register" ? `Welcome, ${state.name}! 🎉` : `Welcome back, ${state.name}!`);
@@ -1220,7 +1226,9 @@ function logout() {
   state.authed = false;
   state.userId = "guest";
   state.name = "Guest";
+  state.favSport = "all";
   localStorage.removeItem("ss_authed");
+  localStorage.removeItem("ss_fav");
   localStorage.setItem("ss_user", "guest");
   localStorage.setItem("ss_name", "Guest");
   $("accountMenu").hidden = true;
@@ -1238,6 +1246,111 @@ function toggleAccountMenu() {
     $("menuHandle").textContent = "@" + state.userId;
   }
   menu.hidden = !open;
+}
+
+/* Pre-select the user's favourite sport in the Live feed. */
+function applyFavSport() {
+  const fav = state.favSport || "all";
+  if (!state.sports.length) return;
+  if (fav !== "all" && !state.sports.some((s) => s.id === fav)) return;
+  state.filters.sport = fav;
+  const chips = $("sportChips");
+  if (chips) {
+    chips.querySelectorAll(".chip").forEach((c) =>
+      c.classList.toggle("active", c.getAttribute("data-chip") === fav)
+    );
+  }
+  loadMatches();
+}
+
+/* ---------- profile editor ---------- */
+function openProfile() {
+  $("accountMenu").hidden = true;
+  const sportOpts = [{ id: "all", name: "No preference", icon: "🌐" }, ...state.sports]
+    .map((s) => `<option value="${s.id}" ${s.id === (state.favSport || "all") ? "selected" : ""}>${s.icon} ${escapeHtml(s.name)}</option>`)
+    .join("");
+  $("profileModalBody").innerHTML = `
+    <button class="modal-close" id="profileClose">✕</button>
+    <div class="profile-head">
+      <span class="account-avatar lg">${initials(state.name || state.userId)}</span>
+      <div>
+        <div class="profile-name">${escapeHtml(state.name || state.userId)}</div>
+        <div class="profile-handle">@${escapeHtml(state.userId)}</div>
+      </div>
+    </div>
+    <form id="profileForm" class="profile-form" autocomplete="off">
+      <label class="profile-label">Display name</label>
+      <input id="profName" type="text" maxlength="40" value="${escapeHtml(state.name || "")}" placeholder="Your name" />
+      <label class="profile-label">Favourite sport</label>
+      <select id="profFav" class="pay-select">${sportOpts}</select>
+      <label class="profile-label">New password <span class="profile-dim">(optional)</span></label>
+      <input id="profPass" type="password" maxlength="60" placeholder="Leave blank to keep current" autocomplete="new-password" />
+      <div class="wallet-msg" id="profileMsg"></div>
+      <button class="btn btn-primary btn-block" type="submit">Save changes</button>
+    </form>`;
+  $("profileModal").hidden = false;
+  $("profileClose").addEventListener("click", () => ($("profileModal").hidden = true));
+  $("profileForm").addEventListener("submit", submitProfile);
+}
+async function submitProfile(e) {
+  e.preventDefault();
+  const name = $("profName").value.trim();
+  const favSport = $("profFav").value;
+  const newPassword = $("profPass").value;
+  const msg = $("profileMsg");
+  try {
+    const r = await api("/api/auth/profile", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: state.userId, name, favSport, newPassword }),
+    });
+    state.name = r.name || state.name;
+    state.favSport = r.favSport || "all";
+    localStorage.setItem("ss_name", state.name);
+    localStorage.setItem("ss_fav", state.favSport);
+    updateAccountUI();
+    applyFavSport();
+    msg.textContent = "Profile updated ✓";
+    msg.className = "wallet-msg ok";
+    toast("Profile saved");
+    setTimeout(() => ($("profileModal").hidden = true), 900);
+  } catch (err) {
+    msg.textContent = err.message;
+    msg.className = "wallet-msg err";
+  }
+}
+
+/* ---------- PWA install + service worker ---------- */
+let deferredInstall = null;
+function initPwa() {
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch(() => {});
+    });
+  }
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredInstall = e;
+    const btn = $("menuInstall");
+    if (btn) btn.hidden = false;
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredInstall = null;
+    const btn = $("menuInstall");
+    if (btn) btn.hidden = true;
+    toast("SportSphere installed! 🎉");
+  });
+}
+async function installApp() {
+  $("accountMenu").hidden = true;
+  if (!deferredInstall) {
+    toast("Use your browser's menu → 'Install app' / 'Add to Home screen'.");
+    return;
+  }
+  deferredInstall.prompt();
+  await deferredInstall.userChoice.catch(() => {});
+  deferredInstall = null;
+  $("menuInstall").hidden = true;
 }
 
 /* ---------- events ---------- */
@@ -1311,6 +1424,8 @@ function bindEvents() {
   $("accountBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleAccountMenu(); });
   $("menuLogout").addEventListener("click", logout);
   $("menuWallet").addEventListener("click", () => { $("accountMenu").hidden = true; });
+  $("menuProfile").addEventListener("click", openProfile);
+  $("menuInstall").addEventListener("click", installApp);
   $("authClose").addEventListener("click", closeAuth);
   $("authGuest").addEventListener("click", closeAuth);
   $("authForm").addEventListener("submit", (e) => { e.preventDefault(); submitAuth(); });
@@ -1332,7 +1447,7 @@ function bindEvents() {
     }
   });
 
-  ["playerModal", "watchModal", "payModal", "gameModal", "matchModal"].forEach((id) => {
+  ["playerModal", "watchModal", "payModal", "gameModal", "matchModal", "profileModal"].forEach((id) => {
     $(id).addEventListener("click", (e) => {
       if (e.target.id === id) {
         if (id === "watchModal") closeWatch();
@@ -1352,12 +1467,15 @@ async function init() {
   }
   bindEvents();
   updateAccountUI();
+  initPwa();
   try {
     await loadSports();
     await Promise.all([loadMatches(), loadHighlights(), loadPlayers(), refreshWallet(), loadSpendCats()]);
   } catch (err) {
     toast("Failed to load: " + err.message);
   }
+  // Personalise the feed to the user's favourite sport, if set.
+  if (state.authed && state.favSport && state.favSport !== "all") applyFavSport();
   // First-time visitors see the sign-in screen (can continue as guest).
   if (!state.authed && !localStorage.getItem("ss_seen_auth")) {
     localStorage.setItem("ss_seen_auth", "1");
