@@ -14,6 +14,8 @@ const state = {
   plSport: "all",
   geo: null,
   userId: localStorage.getItem("ss_user") || "guest",
+  name: localStorage.getItem("ss_name") || "Guest",
+  authed: localStorage.getItem("ss_authed") === "1",
   wallet: null,
   games: [],
   pointsPerRupee: 100,
@@ -1132,6 +1134,112 @@ function toggleTheme() {
   $("themeBtn").textContent = next === "dark" ? "☀️" : "🌙";
 }
 
+/* ---------- auth / account ---------- */
+let authMode = "login";
+function updateAccountUI() {
+  const btn = $("accountName");
+  const av = $("accountAvatar");
+  if (state.authed) {
+    btn.textContent = state.name || state.userId;
+    av.textContent = initials(state.name || state.userId);
+    av.classList.remove("guest");
+  } else {
+    btn.textContent = "Sign in";
+    av.textContent = "?";
+    av.classList.add("guest");
+  }
+  const wu = $("walletUserId");
+  if (wu) wu.textContent = state.authed ? "@" + state.userId : "guest";
+}
+function openAuth(mode) {
+  setAuthMode(mode || "login");
+  $("authMsg").textContent = "";
+  $("authMsg").className = "auth-msg";
+  $("authForm").reset();
+  $("authOverlay").hidden = false;
+  document.body.style.overflow = "hidden";
+  setTimeout(() => $("authUser").focus(), 60);
+}
+function closeAuth() {
+  $("authOverlay").hidden = true;
+  document.body.style.overflow = "";
+}
+function setAuthMode(mode) {
+  authMode = mode;
+  const isReg = mode === "register";
+  document.querySelectorAll(".auth-tab").forEach((t) =>
+    t.classList.toggle("active", t.getAttribute("data-auth-tab") === mode)
+  );
+  $("authSlider").style.transform = isReg ? "translateX(100%)" : "translateX(0)";
+  $("authNameField").hidden = !isReg;
+  $("authSubmit").textContent = isReg ? "Create account" : "Log in";
+  $("authSwitchText").textContent = isReg ? "Already have an account?" : "New here?";
+  $("authSwitch").textContent = isReg ? "Log in instead" : "Create an account";
+  $("authPass").setAttribute("autocomplete", isReg ? "new-password" : "current-password");
+  $("authMsg").textContent = "";
+  $("authMsg").className = "auth-msg";
+}
+function authMsg(text, ok) {
+  const el = $("authMsg");
+  el.textContent = text;
+  el.className = "auth-msg " + (ok ? "ok" : "err");
+}
+async function submitAuth() {
+  const username = $("authUser").value.trim();
+  const password = $("authPass").value;
+  const name = $("authName").value.trim();
+  if (!username || !password) return authMsg("Enter a username and password.", false);
+  const btn = $("authSubmit");
+  btn.disabled = true;
+  btn.classList.add("loading");
+  try {
+    const path = authMode === "register" ? "/api/auth/register" : "/api/auth/login";
+    const r = await api(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, name }),
+    });
+    state.userId = r.userId;
+    state.name = r.name || r.userId;
+    state.authed = true;
+    localStorage.setItem("ss_user", state.userId);
+    localStorage.setItem("ss_name", state.name);
+    localStorage.setItem("ss_authed", "1");
+    updateAccountUI();
+    closeAuth();
+    await refreshWallet();
+    toast(authMode === "register" ? `Welcome, ${state.name}! 🎉` : `Welcome back, ${state.name}!`);
+  } catch (err) {
+    authMsg(err.message, false);
+  } finally {
+    btn.disabled = false;
+    btn.classList.remove("loading");
+  }
+}
+function logout() {
+  state.authed = false;
+  state.userId = "guest";
+  state.name = "Guest";
+  localStorage.removeItem("ss_authed");
+  localStorage.setItem("ss_user", "guest");
+  localStorage.setItem("ss_name", "Guest");
+  $("accountMenu").hidden = true;
+  updateAccountUI();
+  refreshWallet();
+  toast("Logged out.");
+}
+function toggleAccountMenu() {
+  if (!state.authed) return openAuth("login");
+  const menu = $("accountMenu");
+  const open = menu.hidden;
+  if (open) {
+    $("menuAvatar").textContent = initials(state.name || state.userId);
+    $("menuName").textContent = state.name || state.userId;
+    $("menuHandle").textContent = "@" + state.userId;
+  }
+  menu.hidden = !open;
+}
+
 /* ---------- events ---------- */
 function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((el) => {
@@ -1197,13 +1305,30 @@ function bindEvents() {
       toast(`Converted to ${inr(r.rupees)} in your wallet!`);
     } catch (err) { toast(err.message); }
   });
-  $("changeUserBtn").addEventListener("click", () => {
-    const id = prompt("Enter a wallet handle:", state.userId);
-    if (id && id.trim()) {
-      state.userId = id.trim().slice(0, 60);
-      localStorage.setItem("ss_user", state.userId);
-      refreshWallet();
-      toast("Switched to " + state.userId);
+  $("changeUserBtn").addEventListener("click", () => openAuth(state.authed ? "login" : "login"));
+
+  // ---- auth / account ----
+  $("accountBtn").addEventListener("click", (e) => { e.stopPropagation(); toggleAccountMenu(); });
+  $("menuLogout").addEventListener("click", logout);
+  $("menuWallet").addEventListener("click", () => { $("accountMenu").hidden = true; });
+  $("authClose").addEventListener("click", closeAuth);
+  $("authGuest").addEventListener("click", closeAuth);
+  $("authForm").addEventListener("submit", (e) => { e.preventDefault(); submitAuth(); });
+  $("authSwitch").addEventListener("click", () => setAuthMode(authMode === "login" ? "register" : "login"));
+  document.querySelectorAll(".auth-tab").forEach((t) =>
+    t.addEventListener("click", () => setAuthMode(t.getAttribute("data-auth-tab")))
+  );
+  $("authEye").addEventListener("click", () => {
+    const p = $("authPass");
+    p.type = p.type === "password" ? "text" : "password";
+    $("authEye").classList.toggle("on", p.type === "text");
+  });
+  $("authOverlay").addEventListener("click", (e) => { if (e.target.id === "authOverlay") closeAuth(); });
+  // close account menu on outside click
+  document.addEventListener("click", (e) => {
+    const menu = $("accountMenu");
+    if (!menu.hidden && !menu.contains(e.target) && e.target.id !== "accountBtn" && !$("accountBtn").contains(e.target)) {
+      menu.hidden = true;
     }
   });
 
@@ -1226,11 +1351,17 @@ async function init() {
     $("themeBtn").textContent = savedTheme === "dark" ? "☀️" : "🌙";
   }
   bindEvents();
+  updateAccountUI();
   try {
     await loadSports();
     await Promise.all([loadMatches(), loadHighlights(), loadPlayers(), refreshWallet(), loadSpendCats()]);
   } catch (err) {
     toast("Failed to load: " + err.message);
+  }
+  // First-time visitors see the sign-in screen (can continue as guest).
+  if (!state.authed && !localStorage.getItem("ss_seen_auth")) {
+    localStorage.setItem("ss_seen_auth", "1");
+    openAuth("login");
   }
   // auto-refresh live scores every 45s
   state.matchTimer = setInterval(() => {
