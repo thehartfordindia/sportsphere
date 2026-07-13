@@ -418,6 +418,49 @@ a { color: var(--primary); }
   padding: 0.2rem 0.55rem; border-radius: 999px;
 }
 
+/* ===================== Follow players ===================== */
+.follow-btn {
+  position: absolute; bottom: 0.8rem; right: 0.8rem;
+  background: var(--surface-2); border: 1px solid var(--border);
+  width: 34px; height: 34px; border-radius: 50%;
+  font-size: 1rem; cursor: pointer; line-height: 1;
+  display: grid; place-items: center;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  z-index: 2;
+}
+.follow-btn:hover { transform: scale(1.12); border-color: var(--live); }
+.follow-btn.on { background: rgba(239, 68, 68, 0.12); border-color: var(--live); animation: heartPop 0.32s ease; }
+@keyframes heartPop { 0% { transform: scale(1); } 45% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.pm-follow {
+  position: static;
+  width: auto; height: auto;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  font-size: 0.85rem; font-weight: 700;
+  gap: 4px; white-space: nowrap;
+  color: var(--ink-soft);
+  margin-left: auto; align-self: center;
+}
+.pm-follow.on { color: var(--live); }
+.pl-head-actions { display: flex; align-items: center; gap: 0.55rem; flex-shrink: 0; }
+.pf-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: var(--surface-2); border: 1px solid var(--border);
+  color: var(--ink-soft); font-weight: 700; font-size: 0.9rem;
+  padding: 0.55rem 0.9rem; border-radius: 999px; cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.pf-chip .pf-heart { filter: grayscale(1); opacity: 0.6; transition: filter 0.15s ease, opacity 0.15s ease; }
+.pf-chip.has .pf-heart { filter: none; opacity: 1; }
+.pf-chip .pf-count {
+  background: var(--surface-3); color: var(--ink-soft);
+  font-size: 0.78rem; font-weight: 800; padding: 1px 8px; border-radius: 999px;
+}
+.pf-chip.active { background: var(--live); border-color: var(--live); color: #fff; }
+.pf-chip.active .pf-heart { filter: none; opacity: 1; }
+.pf-chip.active .pf-count { background: rgba(255, 255, 255, 0.25); color: #fff; }
+.empty-sub { font-size: 0.85rem; color: var(--ink-faint); }
+
 /* ===== Games ===== */
 .games-top { display: grid; grid-template-columns: 340px 1fr; gap: 1.2rem; margin-bottom: 1.6rem; }
 .points-card {
