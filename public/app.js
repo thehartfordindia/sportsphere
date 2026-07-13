@@ -1,44 +1,37 @@
 "use strict";
 
-/* SportSphere frontend — talks to the native-http backend. */
+/* SportSphere frontend — dynamic sports, rich players, play-to-earn games & wallet. */
 
-const API = "";
 const $ = (id) => document.getElementById(id);
-
 const state = {
   view: "live",
   sports: [],
   matches: [],
   regions: [],
-  highlights: [],
-  players: [],
-  wallet: null,
+  source: "sample",
   filters: { sport: "all", status: "all", region: "all" },
   hlSport: "all",
   plSport: "all",
   geo: null,
   userId: localStorage.getItem("ss_user") || "guest",
-  watch: null, // { matchId, seconds, timer }
+  wallet: null,
+  games: [],
+  pointsPerRupee: 100,
+  watch: null,
+  matchTimer: null,
+  game: null, // active game session
 };
-
-const VIEWS = ["live", "highlights", "players", "wallet"];
+const VIEWS = ["live", "highlights", "players", "games", "wallet"];
 
 /* ---------- helpers ---------- */
-function inr(n) {
-  return "₹" + Number(n || 0).toLocaleString("en-IN");
-}
+const inr = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 function escapeHtml(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])
   );
 }
 function initials(name) {
-  return String(name || "?")
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  return String(name || "?").split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
 }
 function fmtViews(n) {
   if (n >= 1e6) return (n / 1e6).toFixed(1) + "M";
@@ -58,27 +51,30 @@ function toast(msg) {
   t.textContent = msg;
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 2600);
+  toastTimer = setTimeout(() => (t.hidden = true), 2800);
 }
-
 async function api(path, opts) {
-  const res = await fetch(`${API}${path}`, opts);
+  const res = await fetch(path, opts);
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
+}
+function sportById(id) {
+  return state.sports.find((s) => s.id === id);
 }
 
 /* ---------- view switching ---------- */
 function showView(name) {
   if (!VIEWS.includes(name)) return;
   state.view = name;
-  document.querySelectorAll("[data-view-panel]").forEach((p) => {
-    p.classList.toggle("active", p.getAttribute("data-view-panel") === name);
-  });
-  document.querySelectorAll(".view-tab").forEach((t) => {
-    t.classList.toggle("active", t.getAttribute("data-view") === name);
-  });
+  document.querySelectorAll("[data-view-panel]").forEach((p) =>
+    p.classList.toggle("active", p.getAttribute("data-view-panel") === name)
+  );
+  document.querySelectorAll(".view-tab").forEach((t) =>
+    t.classList.toggle("active", t.getAttribute("data-view") === name)
+  );
   if (name === "wallet") refreshWallet();
+  if (name === "games") loadGames();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -87,21 +83,16 @@ async function loadSports() {
   const { sports } = await api("/api/sports");
   state.sports = sports;
   $("sportCount").textContent = sports.length;
-  renderSportChips("sportChips", "sport", () => loadMatches());
-  renderSportChips("hlSportChips", "hlSport", () => loadHighlights());
-  renderSportChips("plSportChips", "plSport", () => loadPlayers());
+  renderChips("sportChips", "sport", () => loadMatches());
+  renderChips("hlSportChips", "hlSport", () => loadHighlights());
+  renderChips("plSportChips", "plSport", () => loadPlayers());
 }
-function renderSportChips(containerId, key, onChange) {
+function renderChips(containerId, key, onChange) {
   const el = $(containerId);
   const current = key === "sport" ? state.filters.sport : state[key];
   const all = [{ id: "all", name: "All", icon: "🌐" }, ...state.sports];
   el.innerHTML = all
-    .map(
-      (s) =>
-        `<button class="chip ${s.id === current ? "active" : ""}" data-chip="${s.id}">${s.icon} ${escapeHtml(
-          s.name
-        )}</button>`
-    )
+    .map((s) => `<button class="chip ${s.id === current ? "active" : ""}" data-chip="${s.id}">${s.icon} ${escapeHtml(s.name)}</button>`)
     .join("");
   el.querySelectorAll("[data-chip]").forEach((b) => {
     b.addEventListener("click", () => {
@@ -115,7 +106,7 @@ function renderSportChips(containerId, key, onChange) {
 }
 
 /* ---------- matches ---------- */
-async function loadMatches() {
+async function loadMatches(silent) {
   const p = new URLSearchParams();
   p.set("sport", state.filters.sport);
   p.set("status", state.filters.status);
@@ -124,28 +115,45 @@ async function loadMatches() {
     p.set("lat", state.geo.lat);
     p.set("lon", state.geo.lon);
   }
-  const { matches, regions } = await api(`/api/matches?${p.toString()}`);
+  const { matches, regions, source } = await api(`/api/matches?${p.toString()}`);
   state.matches = matches;
   state.regions = regions;
+  state.source = source;
+  renderDataBadge();
   renderRegions();
   renderMatches();
+  renderTicker();
   const live = matches.filter((m) => m.status === "LIVE").length;
   $("liveCount").textContent = live;
   $("matchCount").textContent = matches.length;
+  if (!silent && source === "live") { /* keep quiet on refresh */ }
+}
+function renderDataBadge() {
+  const b = $("dataBadge");
+  if (state.source === "live") {
+    b.className = "hero-eyebrow live";
+    b.textContent = "● Live data · TheSportsDB";
+  } else {
+    b.className = "hero-eyebrow sample";
+    b.textContent = "● Sample data (live feed offline here)";
+  }
 }
 function renderRegions() {
   const sel = $("regionSelect");
-  if (sel.options.length && sel.dataset.filled) return;
+  const prev = state.filters.region;
   sel.innerHTML =
     `<option value="all">🌍 All regions</option>` +
     state.regions.map((r) => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join("");
-  sel.dataset.filled = "1";
-  sel.value = state.filters.region;
+  sel.value = prev;
+}
+function teamBadge(url, name) {
+  if (url) return `<img class="team-badge" src="${escapeHtml(url)}" alt="" loading="lazy" onerror="this.style.display='none'"/>`;
+  return `<span class="team-badge ph">${escapeHtml(initials(name))}</span>`;
 }
 function renderMatches() {
   const grid = $("matchGrid");
   if (!state.matches.length) {
-    grid.innerHTML = `<p class="section-sub">No matches for this filter.</p>`;
+    grid.innerHTML = `<p class="section-sub">No matches for this filter right now.</p>`;
     return;
   }
   grid.innerHTML = state.matches
@@ -153,51 +161,63 @@ function renderMatches() {
       const dist = m.distanceKm != null ? `📍 ${m.distanceKm} km` : "";
       const viewers = m.viewers ? `👁️ ${fmtViews(m.viewers)}` : "";
       const canWatch = m.status === "LIVE";
+      const sIcon = (sportById(m.sport) || {}).icon || "🎽";
       return `
       <div class="match-card">
         <div class="match-head">
-          <span class="league">${escapeHtml(m.league)}</span>
+          <span class="league">${sIcon} ${escapeHtml(m.league)}</span>
           <span class="badge ${m.status}">${m.status}</span>
         </div>
         <div class="teams">
-          <div class="team-row"><span>${escapeHtml(m.home)}</span><span class="score">${escapeHtml(
-        m.scoreHome
-      )}</span></div>
-          <div class="team-row"><span>${escapeHtml(m.away)}</span><span class="score">${escapeHtml(
-        m.scoreAway
-      )}</span></div>
+          <div class="team-row">
+            <span class="team-name">${teamBadge(m.homeBadge, m.home)}<span>${escapeHtml(m.home)}</span></span>
+            <span class="score">${escapeHtml(m.scoreHome)}</span>
+          </div>
+          <div class="team-row">
+            <span class="team-name">${teamBadge(m.awayBadge, m.away)}<span>${escapeHtml(m.away)}</span></span>
+            <span class="score">${escapeHtml(m.scoreAway)}</span>
+          </div>
         </div>
         <div class="match-foot">
-          <span class="match-meta"><span>⏱️ ${escapeHtml(m.clock)}</span>${
-        viewers ? `<span>${viewers}</span>` : ""
-      }${dist ? `<span>${dist}</span>` : ""}</span>
-          ${
-            canWatch
-              ? `<button class="watch-btn" data-watch="${m.id}">▶ Watch &amp; earn</button>`
-              : `<span class="match-meta"><span>${escapeHtml(m.city)}</span></span>`
-          }
+          <span class="match-meta"><span>⏱️ ${escapeHtml(m.clock)}</span>${viewers ? `<span>${viewers}</span>` : ""}${dist ? `<span>${dist}</span>` : ""}</span>
+          ${canWatch ? `<button class="watch-btn" data-watch="${m.id}">▶ Watch &amp; earn</button>` : `<span class="match-meta"><span>${escapeHtml(m.city || "")}</span></span>`}
         </div>
       </div>`;
     })
     .join("");
-  grid.querySelectorAll("[data-watch]").forEach((b) => {
-    b.addEventListener("click", () => openWatch(b.getAttribute("data-watch")));
-  });
+  grid.querySelectorAll("[data-watch]").forEach((b) =>
+    b.addEventListener("click", () => openWatch(b.getAttribute("data-watch")))
+  );
+}
+function renderTicker() {
+  const live = state.matches.filter((m) => m.status === "LIVE");
+  const track = $("tickerTrack");
+  if (!live.length) {
+    $("ticker").hidden = true;
+    return;
+  }
+  const items = live
+    .map((m) => `<span class="ticker-item"><span class="tk-live">● LIVE</span> ${escapeHtml(m.league)}: <b>${escapeHtml(m.home)}</b> ${escapeHtml(m.scoreHome)}–${escapeHtml(m.scoreAway)} <b>${escapeHtml(m.away)}</b></span>`)
+    .join("");
+  track.innerHTML = items + items; // duplicate for seamless loop
+  $("ticker").hidden = false;
 }
 
 /* ---------- highlights ---------- */
 async function loadHighlights() {
   const { highlights } = await api(`/api/highlights?sport=${state.hlSport}`);
-  state.highlights = highlights;
   const grid = $("highlightGrid");
   grid.innerHTML = highlights
     .map((h) => {
-      const sport = state.sports.find((s) => s.id === h.sport);
+      const sport = sportById(h.sport);
       return `
       <div class="highlight-card" data-hl="${h.id}">
-        <div class="highlight-thumb">${sport ? sport.icon : "🎬"}<span class="highlight-dur">${escapeHtml(
-        h.duration
-      )}</span></div>
+        <div class="highlight-thumb">
+          ${sport ? sport.icon : "🎬"}
+          <span class="play-ico">▶</span>
+          ${h.trending ? `<span class="trend-tag">🔥 Trending</span>` : ""}
+          <span class="highlight-dur">${escapeHtml(h.duration)}</span>
+        </div>
         <div class="highlight-body">
           <h4>${escapeHtml(h.title)}</h4>
           <div class="hl-meta">${fmtViews(h.views)} views · ${sport ? escapeHtml(sport.name) : ""}</div>
@@ -205,79 +225,143 @@ async function loadHighlights() {
       </div>`;
     })
     .join("");
-  grid.querySelectorAll("[data-hl]").forEach((c) => {
-    c.addEventListener("click", () => toast("▶ Playing highlight (demo)"));
-  });
+  grid.querySelectorAll("[data-hl]").forEach((c) =>
+    c.addEventListener("click", () => toast("▶ Playing highlight (demo)"))
+  );
 }
 
 /* ---------- players ---------- */
 async function loadPlayers() {
   const { players } = await api(`/api/players?sport=${state.plSport}`);
-  state.players = players;
   const grid = $("playerGrid");
   grid.innerHTML = players
     .map((p) => {
-      const sport = state.sports.find((s) => s.id === p.sport);
+      const sport = sportById(p.sport);
       return `
       <div class="player-card" data-player="${p.id}">
         <div class="player-avatar">${initials(p.name)}</div>
         <div class="player-info">
           <h4>${escapeHtml(p.name)}</h4>
-          <div class="p-sub">${sport ? sport.icon : ""} ${escapeHtml(p.role)} · ${escapeHtml(
-        p.country
-      )}</div>
+          <div class="p-sub">${sport ? sport.icon : ""} ${escapeHtml(p.role)} · ${escapeHtml(p.country)}</div>
+          <div class="p-tagline">${escapeHtml(p.tagline || "")}</div>
         </div>
         <span class="rating-pill">${p.rating}</span>
       </div>`;
     })
     .join("");
-  grid.querySelectorAll("[data-player]").forEach((c) => {
-    c.addEventListener("click", () => openPlayer(c.getAttribute("data-player")));
-  });
+  grid.querySelectorAll("[data-player]").forEach((c) =>
+    c.addEventListener("click", () => openPlayer(c.getAttribute("data-player")))
+  );
 }
 async function openPlayer(id) {
-  const p = await api(`/api/players/${encodeURIComponent(id)}`);
+  $("playerModalBody").innerHTML = `<div style="padding:2rem;text-align:center">Loading profile…</div>`;
+  $("playerModal").hidden = false;
+  let p;
+  try {
+    p = await api(`/api/players/${encodeURIComponent(id)}`);
+  } catch (e) {
+    $("playerModalBody").innerHTML = `<button class="modal-close" data-pclose>✕</button><p style="padding:2rem">Couldn't load player.</p>`;
+    $("playerModalBody").querySelector("[data-pclose]").addEventListener("click", () => ($("playerModal").hidden = true));
+    return;
+  }
+  const sport = sportById(p.sport);
   const career = p.career || {};
   const life = p.lifestyle || {};
+  const social = p.social || {};
+  const avatarStyle = p.photo ? `style="background-image:url('${escapeHtml(p.photo)}')"` : "";
+  const bannerStyle = p.banner ? `style="background-image:url('${escapeHtml(p.banner)}')"` : "";
+  const sourceTag = p.dataSource === "live"
+    ? `<span class="pm-source live">● live data</span>`
+    : `<span class="pm-source sample">sample</span>`;
+
   const careerStats = Object.entries(career)
-    .map(
-      ([k, v]) =>
-        `<div class="pm-stat"><b>${escapeHtml(String(v))}</b><span>${escapeHtml(
-          k.replace(/([A-Z])/g, " $1")
-        )}</span></div>`
-    )
+    .map(([k, v]) => `<div class="pm-stat"><b>${escapeHtml(String(v))}</b><span>${escapeHtml(k.replace(/([A-Z])/g, " $1"))}</span></div>`)
     .join("");
+
+  const infoRows = [
+    ["Born", p.born],
+    ["Country", p.country],
+    ["Team", p.team],
+    ["Height", p.height],
+    ["Weight", p.weight],
+    ["Family", life.family],
+  ].filter(([, v]) => v);
+
+  const socialCards = [
+    social.instagram ? { ico: "📸", name: "Instagram", handle: handleFrom(social.instagram), url: social.instagram } : null,
+    social.twitter ? { ico: "𝕏", name: "X / Twitter", handle: handleFrom(social.twitter), url: social.twitter } : null,
+    social.facebook ? { ico: "📘", name: "Facebook", handle: handleFrom(social.facebook), url: social.facebook } : null,
+    social.website ? { ico: "🌐", name: "Website", handle: "official", url: social.website } : null,
+    social.youtube ? { ico: "▶️", name: "YouTube", handle: handleFrom(social.youtube), url: social.youtube } : null,
+  ].filter(Boolean);
+
   $("playerModalBody").innerHTML = `
-    <button class="modal-close" id="playerClose">✕</button>
+    <button class="modal-close" data-pclose>✕</button>
+    <div class="pm-banner" ${bannerStyle}></div>
     <div class="pm-head">
-      <div class="pm-avatar">${initials(p.name)}</div>
-      <div>
-        <h3>${escapeHtml(p.name)}</h3>
-        <div class="p-sub">${escapeHtml(p.role)} · ${escapeHtml(p.team)} · Age ${p.age}</div>
-        <span class="rating-pill">Rating ${p.rating}</span>
+      <div class="pm-avatar" ${avatarStyle}>${p.photo ? "" : initials(p.name)}</div>
+      <div class="pm-head-info">
+        <h3>${escapeHtml(p.name)} ${sourceTag}</h3>
+        <div class="pm-tagline">${sport ? sport.icon : ""} ${escapeHtml(p.tagline || p.role)}</div>
       </div>
     </div>
-    <div class="pm-section">
-      <h4>Career</h4>
-      <div class="pm-stats">${careerStats}</div>
+    <div class="pm-tabs">
+      <button class="pm-tab active" data-pane="overview">Overview</button>
+      <button class="pm-tab" data-pane="career">Career</button>
+      <button class="pm-tab" data-pane="personal">Personal</button>
+      <button class="pm-tab" data-pane="social">Social</button>
     </div>
-    <div class="pm-section">
-      <h4>Lifestyle</h4>
-      <p class="p-sub">💪 ${escapeHtml(life.fitness || "—")}</p>
-      <div class="tag-row">${(life.interests || [])
-        .map((i) => `<span class="tag">${escapeHtml(i)}</span>`)
-        .join("")}</div>
-      ${life.foundation ? `<p class="p-sub" style="margin-top:.5rem">❤️ ${escapeHtml(life.foundation)}</p>` : ""}
+    <div class="pm-pane active" data-pane="overview">
+      <p class="pm-bio">${escapeHtml(p.bio || "")}</p>
+      ${infoRows.map(([k, v]) => `<div class="pm-info-row"><span class="k">${escapeHtml(k)}</span><span class="v">${escapeHtml(v)}</span></div>`).join("")}
+    </div>
+    <div class="pm-pane" data-pane="career">
+      <div class="pm-stats">${careerStats || "<p class='section-sub'>No stats.</p>"}</div>
+    </div>
+    <div class="pm-pane" data-pane="personal">
+      <div class="pm-info-row"><span class="k">💪 Fitness</span><span class="v">${escapeHtml(life.fitness || "—")}</span></div>
+      <div class="pm-info-row"><span class="k">🥗 Diet</span><span class="v">${escapeHtml(life.diet || "—")}</span></div>
+      <div class="pm-info-row"><span class="k">❤️ Foundation</span><span class="v">${escapeHtml(life.foundation || "—")}</span></div>
+      <div class="pm-info-row"><span class="k">👪 Family</span><span class="v">${escapeHtml(life.family || "—")}</span></div>
+      <p class="section-sub" style="margin-top:.8rem">Interests</p>
+      <div class="tag-row">${(life.interests || []).map((i) => `<span class="tag">${escapeHtml(i)}</span>`).join("") || "—"}</div>
+    </div>
+    <div class="pm-pane" data-pane="social">
+      ${social.followersM ? `<div class="social-followers"><span>Total following</span><b>${social.followersM}M</b></div>` : ""}
+      ${social.engagement ? `<div class="social-followers"><span>Avg. engagement</span><b>${escapeHtml(social.engagement)}</b></div>` : ""}
+      <div class="social-grid">
+        ${socialCards.map((s) => `
+          <a class="social-card" href="${escapeHtml(s.url)}" target="_blank" rel="noopener noreferrer">
+            <span class="social-ico">${s.ico}</span>
+            <span class="social-meta"><span class="s-name">${escapeHtml(s.name)}</span><span class="s-handle">${escapeHtml(s.handle)}</span></span>
+          </a>`).join("") || "<p class='section-sub'>No public socials listed.</p>"}
+      </div>
     </div>`;
-  $("playerModal").hidden = false;
-  $("playerClose").addEventListener("click", () => ($("playerModal").hidden = true));
+
+  $("playerModalBody").querySelector("[data-pclose]").addEventListener("click", () => ($("playerModal").hidden = true));
+  $("playerModalBody").querySelectorAll(".pm-tab").forEach((tab) => {
+    tab.addEventListener("click", () => {
+      const pane = tab.getAttribute("data-pane");
+      $("playerModalBody").querySelectorAll(".pm-tab").forEach((t) => t.classList.toggle("active", t === tab));
+      $("playerModalBody").querySelectorAll(".pm-pane").forEach((pn) => pn.classList.toggle("active", pn.getAttribute("data-pane") === pane));
+    });
+  });
+}
+function handleFrom(url) {
+  try {
+    const parts = String(url).replace(/\/+$/, "").split("/");
+    const last = parts[parts.length - 1];
+    return last ? "@" + last : "link";
+  } catch (_e) {
+    return "link";
+  }
 }
 
 /* ---------- watch-to-earn ---------- */
 function openWatch(matchId) {
   const m = state.matches.find((x) => x.id === matchId);
   if (!m) return;
-  state.watch = { matchId, seconds: 0, earnedThisSession: 0, timer: null };
+  state.watch = { matchId, seconds: 0, earned: 0, timer: null };
   renderWatch(m, 0, 0);
   $("watchModal").hidden = false;
   state.watch.timer = setInterval(() => tickWatch(m), 1000);
@@ -286,27 +370,21 @@ function renderWatch(m, seconds, earned) {
   const mm = String(Math.floor(seconds / 60)).padStart(2, "0");
   const ss = String(seconds % 60).padStart(2, "0");
   $("watchModalBody").innerHTML = `
-    <button class="modal-close" id="watchClose">✕</button>
+    <button class="modal-close" data-wclose>✕</button>
     <div class="watch-screen">
       <span class="watch-live-dot">🔴 LIVE</span>
       <div>${escapeHtml(m.league)}</div>
-      <div class="watch-score">${escapeHtml(m.home)} ${escapeHtml(m.scoreHome)} — ${escapeHtml(
-    m.scoreAway
-  )} ${escapeHtml(m.away)}</div>
+      <div class="watch-score">${escapeHtml(m.home)} ${escapeHtml(m.scoreHome)} — ${escapeHtml(m.scoreAway)} ${escapeHtml(m.away)}</div>
       <div>${escapeHtml(m.clock)}</div>
     </div>
-    <div class="watch-earn-live">
-      <span>⏱️ Watching: <b>${mm}:${ss}</b></span>
-      <span>Earned: <b>${inr(earned)}</b></span>
-    </div>
-    <p class="section-sub" style="margin:0">You earn ₹2 demo cashback per full minute (up to ₹50/day).</p>`;
-  $("watchClose").addEventListener("click", closeWatch);
+    <div class="watch-earn-live"><span>⏱️ Watching <b>${mm}:${ss}</b></span><span>Earned <b>${inr(earned)}</b></span></div>
+    <p class="section-sub" style="margin:0">₹2 demo cashback per full minute (up to ₹50/day).</p>`;
+  $("watchModalBody").querySelector("[data-wclose]").addEventListener("click", closeWatch);
 }
 async function tickWatch(m) {
   if (!state.watch) return;
   state.watch.seconds += 1;
   const s = state.watch.seconds;
-  // award one minute of cashback every 60s
   if (s % 60 === 0) {
     try {
       const r = await api("/api/wallet/watch", {
@@ -315,15 +393,13 @@ async function tickWatch(m) {
         body: JSON.stringify({ userId: state.userId, minutes: 1 }),
       });
       state.wallet = r.wallet;
-      state.watch.earnedThisSession += r.reward;
+      state.watch.earned += r.reward;
       updateWalletUI();
       if (r.reward > 0) toast(`+${inr(r.reward)} watch cashback!`);
       if (r.cappedToday) toast("Daily watch-to-earn cap reached (₹50).");
-    } catch (_e) {
-      /* ignore */
-    }
+    } catch (_e) { /* ignore */ }
   }
-  renderWatch(m, s, state.watch.earnedThisSession);
+  renderWatch(m, s, state.watch.earned);
 }
 function closeWatch() {
   if (state.watch && state.watch.timer) clearInterval(state.watch.timer);
@@ -331,22 +407,316 @@ function closeWatch() {
   $("watchModal").hidden = true;
 }
 
+/* ================= GAMES ================= */
+async function loadGames() {
+  if (!state.games.length) {
+    const { games, pointsPerRupee } = await api("/api/games");
+    state.games = games;
+    state.pointsPerRupee = pointsPerRupee;
+    renderGameGrid();
+  }
+  await refreshWallet();
+}
+function renderGameGrid() {
+  const grid = $("gameGrid");
+  grid.innerHTML = state.games
+    .map((g) => `
+      <div class="game-card" data-game="${g.id}" style="--gc:${g.color}">
+        <span class="game-max">up to ${g.maxPoints} pts</span>
+        <div class="game-ico">${g.icon}</div>
+        <h4>${escapeHtml(g.name)}</h4>
+        <div class="game-tagline">${escapeHtml(g.tagline)}</div>
+        <span class="game-play">Play now ▶</span>
+      </div>`)
+    .join("");
+  grid.querySelectorAll("[data-game]").forEach((c) =>
+    c.addEventListener("click", () => openGame(c.getAttribute("data-game")))
+  );
+}
+function updatePointsUI() {
+  const w = state.wallet;
+  if (!w) return;
+  const rupee = Math.floor((w.points || 0) / state.pointsPerRupee);
+  $("pointsBalance").textContent = w.points || 0;
+  if ($("gamesPointsBig")) {
+    $("gamesPointsBig").textContent = w.points || 0;
+    $("pointsRupee").textContent = inr(rupee);
+    $("streakLabel").textContent = `🔥 ${w.streakDays || 1}-day streak`;
+  }
+}
+function openGame(gameId) {
+  const g = state.games.find((x) => x.id === gameId);
+  if (!g) return;
+  state.game = { id: gameId, def: g };
+  $("gameModal").hidden = false;
+  renderGameIntro(g);
+}
+function gameShell(g, inner) {
+  return `
+    <button class="modal-close" data-gclose>✕</button>
+    <div class="game-modal-head">
+      <span class="game-modal-ico">${g.icon}</span>
+      <div><h3>${escapeHtml(g.name)}</h3><div class="section-sub">${escapeHtml(g.how)}</div></div>
+    </div>
+    ${inner}`;
+}
+function bindGameClose() {
+  const btn = $("gameModalBody").querySelector("[data-gclose]");
+  if (btn) btn.addEventListener("click", closeGame);
+}
+function closeGame() {
+  if (state.game && state.game.cleanup) state.game.cleanup();
+  state.game = null;
+  $("gameModal").hidden = true;
+}
+function renderGameIntro(g) {
+  $("gameModalBody").innerHTML = gameShell(g, `
+    <div class="game-stage">
+      <div style="font-size:3rem">${g.icon}</div>
+      <p class="section-sub" style="max-width:34ch">${escapeHtml(g.how)}</p>
+      <button class="btn btn-primary" id="gameStartBtn">Start game</button>
+    </div>`);
+  bindGameClose();
+  $("gameStartBtn").addEventListener("click", () => startGame(g.id));
+}
+function startGame(id) {
+  if (id === "reaction") return startReaction();
+  if (id === "quiz") return startQuiz();
+  if (id === "target") return startTarget();
+  if (id === "streak") return startStreak();
+}
+async function finishGame(gameId, score, summaryHtml) {
+  let result = { pointsEarned: 0, rupeeValue: 0, streakDays: 1 };
+  try {
+    result = await api("/api/games/score", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: state.userId, gameId, score }),
+    });
+    state.wallet = result.wallet;
+    updateWalletUI();
+  } catch (_e) { /* ignore */ }
+  const g = state.games.find((x) => x.id === gameId) || { icon: "🎮", name: "Game" };
+  $("gameModalBody").innerHTML = gameShell(g, `
+    <div class="game-stage">
+      <div class="game-result">
+        ${summaryHtml || ""}
+        <div class="gr-points">+${result.pointsEarned} pts</div>
+        <p class="section-sub">≈ ${inr(result.rupeeValue || 0)} · 🔥 ${result.streakDays}-day streak${result.cappedToday ? " · daily cap reached" : ""}</p>
+        <div style="display:flex;gap:.6rem;justify-content:center;margin-top:1rem">
+          <button class="btn btn-ghost" id="gameAgainBtn">Play again</button>
+          <button class="btn btn-primary" id="gameDoneBtn">Done</button>
+        </div>
+      </div>
+    </div>`);
+  bindGameClose();
+  $("gameAgainBtn").addEventListener("click", () => renderGameIntro(g));
+  $("gameDoneBtn").addEventListener("click", closeGame);
+  if (result.pointsEarned > 0) toast(`+${result.pointsEarned} points earned!`);
+}
+
+/* --- Game 1: Reaction Rush --- */
+function startReaction() {
+  const g = state.game.def;
+  $("gameModalBody").innerHTML = gameShell(g, `<div class="game-stage" style="padding:0"><div class="reaction-pad reaction-wait" id="reactPad">Wait for green…</div></div>`);
+  bindGameClose();
+  const pad = $("reactPad");
+  let ready = false, startTs = 0, timer = null;
+  const wait = 1200 + Math.random() * 2600;
+  timer = setTimeout(() => {
+    ready = true;
+    startTs = performance.now();
+    pad.className = "reaction-pad reaction-go";
+    pad.textContent = "TAP NOW!";
+  }, wait);
+  state.game.cleanup = () => clearTimeout(timer);
+  pad.addEventListener("click", () => {
+    if (!ready) {
+      clearTimeout(timer);
+      pad.className = "reaction-pad reaction-early";
+      pad.textContent = "Too early! 0 pts";
+      setTimeout(() => finishGame("reaction", 0, `<p>⏱️ Jumped the gun.</p>`), 900);
+      return;
+    }
+    const ms = Math.round(performance.now() - startTs);
+    // faster = more points; 300 max at ~120ms, 0 at ~700ms
+    const score = Math.max(0, Math.min(300, Math.round(300 - (ms - 120) * 0.6)));
+    finishGame("reaction", score, `<p>⚡ ${ms} ms reaction</p>`);
+  });
+}
+
+/* --- Game 2: Sports IQ quiz --- */
+async function startQuiz() {
+  const g = state.game.def;
+  let questions = [];
+  try {
+    const r = await api("/api/games/quiz");
+    questions = r.questions;
+  } catch (_e) {
+    return finishGame("quiz", 0, `<p>Couldn't load questions.</p>`);
+  }
+  const answers = [];
+  let idx = 0;
+  function renderQ() {
+    const q = questions[idx];
+    $("gameModalBody").innerHTML = gameShell(g, `
+      <div class="game-stage" style="align-items:stretch">
+        <div class="quiz-progress">Question ${idx + 1} of ${questions.length}</div>
+        <div class="quiz-q">${escapeHtml(q.q)}</div>
+        <div class="quiz-opts">${q.options.map((o, i) => `<button class="quiz-opt" data-opt="${i}">${escapeHtml(o)}</button>`).join("")}</div>
+      </div>`);
+    bindGameClose();
+    $("gameModalBody").querySelectorAll("[data-opt]").forEach((b) =>
+      b.addEventListener("click", () => {
+        answers[idx] = Number(b.getAttribute("data-opt"));
+        idx += 1;
+        if (idx < questions.length) renderQ();
+        else submitQuiz();
+      })
+    );
+  }
+  async function submitQuiz() {
+    let scoreData = { correct: 0, total: questions.length, score: 0 };
+    try {
+      scoreData = await api("/api/games/quiz/score", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ answers }),
+      });
+    } catch (_e) { /* ignore */ }
+    finishGame("quiz", scoreData.score, `<p>🧠 ${scoreData.correct}/${scoreData.total} correct</p>`);
+  }
+  renderQ();
+}
+
+/* --- Game 3: Target Blitz --- */
+function startTarget() {
+  const g = state.game.def;
+  $("gameModalBody").innerHTML = gameShell(g, `
+    <div class="game-stage" style="padding:0">
+      <div class="target-area" id="targetArea">
+        <div class="target-hud"><span id="tgtScore">Hits: 0</span><span id="tgtTime">20s</span></div>
+      </div>
+    </div>`);
+  bindGameClose();
+  const area = $("targetArea");
+  let hits = 0, time = 20, dot = null, moveTimer = null, countdown = null;
+  function place() {
+    if (dot) dot.remove();
+    dot = document.createElement("div");
+    dot.className = "target-dot";
+    const w = area.clientWidth - 48, h = area.clientHeight - 60;
+    dot.style.left = Math.max(4, Math.random() * w) + "px";
+    dot.style.top = Math.max(44, 44 + Math.random() * (h - 44)) + "px";
+    dot.addEventListener("click", (e) => {
+      e.stopPropagation();
+      hits += 1;
+      $("tgtScore").textContent = "Hits: " + hits;
+      place();
+    });
+    area.appendChild(dot);
+  }
+  place();
+  moveTimer = setInterval(place, 1100);
+  countdown = setInterval(() => {
+    time -= 1;
+    $("tgtTime").textContent = time + "s";
+    if (time <= 0) {
+      clearInterval(moveTimer);
+      clearInterval(countdown);
+      finishGame("target", hits * 20, `<p>🎯 ${hits} targets hit</p>`);
+    }
+  }, 1000);
+  state.game.cleanup = () => { clearInterval(moveTimer); clearInterval(countdown); };
+}
+
+/* --- Game 4: Score Streak (memory sequence) --- */
+function startStreak() {
+  const g = state.game.def;
+  const seq = [];
+  let input = [];
+  let showing = true;
+  function newRound() {
+    seq.push(Math.floor(Math.random() * 4));
+    input = [];
+    renderBoard();
+    flashSequence();
+  }
+  function renderBoard() {
+    $("gameModalBody").innerHTML = gameShell(g, `
+      <div class="game-stage">
+        <div class="quiz-progress" id="seqInfo">Watch the sequence… (round ${seq.length})</div>
+        <div class="seq-grid">
+          ${[0, 1, 2, 3].map((i) => `<button class="seq-cell" data-cell="${i}"></button>`).join("")}
+        </div>
+      </div>`);
+    bindGameClose();
+    $("gameModalBody").querySelectorAll("[data-cell]").forEach((c) =>
+      c.addEventListener("click", () => onCell(Number(c.getAttribute("data-cell"))))
+    );
+  }
+  function flashSequence() {
+    showing = true;
+    const cells = $("gameModalBody").querySelectorAll("[data-cell]");
+    let i = 0;
+    const t = setInterval(() => {
+      cells.forEach((c) => (c.className = "seq-cell"));
+      if (i > 0) {
+        // brief gap handled by class reset
+      }
+      if (i < seq.length) {
+        const cell = cells[seq[i]];
+        cell.className = `seq-cell on c${seq[i]}`;
+        i += 1;
+      } else {
+        clearInterval(t);
+        setTimeout(() => {
+          cells.forEach((c) => (c.className = "seq-cell"));
+          showing = false;
+          $("seqInfo").textContent = `Your turn — repeat ${seq.length} step(s)`;
+        }, 400);
+      }
+    }, 650);
+    state.game.cleanup = () => clearInterval(t);
+  }
+  function onCell(i) {
+    if (showing) return;
+    input.push(i);
+    const cells = $("gameModalBody").querySelectorAll("[data-cell]");
+    cells[i].className = `seq-cell on c${i}`;
+    setTimeout(() => (cells[i].className = "seq-cell"), 200);
+    const pos = input.length - 1;
+    if (input[pos] !== seq[pos]) {
+      const score = Math.max(0, (seq.length - 1) * 60);
+      return finishGame("streak", Math.min(350, score), `<p>🃏 Reached round ${seq.length}</p>`);
+    }
+    if (input.length === seq.length) {
+      if (seq.length >= 6) {
+        return finishGame("streak", 350, `<p>🏆 Perfect! 6 rounds</p>`);
+      }
+      $("seqInfo").textContent = "Correct! Next round…";
+      setTimeout(newRound, 700);
+    }
+  }
+  newRound();
+}
+
 /* ---------- wallet ---------- */
 async function refreshWallet() {
   try {
     state.wallet = await api(`/api/wallet?userId=${encodeURIComponent(state.userId)}`);
     updateWalletUI();
-  } catch (_e) {
-    /* ignore */
-  }
+  } catch (_e) { /* ignore */ }
 }
 function updateWalletUI() {
   const w = state.wallet;
   if (!w) return;
   $("walletBalance").textContent = inr(w.balance);
+  updatePointsUI();
   if ($("walletBigBalance")) {
     $("walletBigBalance").textContent = inr(w.balance);
     $("cashbackEarned").textContent = inr(w.cashbackEarned);
+    $("walletPoints").textContent = w.points || 0;
     $("walletUserId").textContent = state.userId;
     const earnedToday = (w.watchMinutesToday || 0) * 2;
     const pct = Math.min(100, (earnedToday / 50) * 100);
@@ -356,17 +726,7 @@ function updateWalletUI() {
   }
 }
 function txnIcon(type) {
-  return (
-    {
-      BONUS: "🎁",
-      ADD: "➕",
-      PAY: "💳",
-      CASHBACK: "💰",
-      TRANSFER: "🔁",
-      RECEIVE: "📥",
-      WATCH_REWARD: "🎬",
-    }[type] || "•"
-  );
+  return ({ BONUS: "🎁", ADD: "➕", PAY: "💳", CASHBACK: "💰", TRANSFER: "🔁", RECEIVE: "📥", WATCH_REWARD: "🎬", GAME_POINTS: "🎮", REDEEM: "🏅" }[type] || "•");
 }
 function renderTxns(txns) {
   const el = $("txnList");
@@ -377,16 +737,14 @@ function renderTxns(txns) {
   el.innerHTML = txns
     .map((t) => {
       const pos = t.amount >= 0;
+      const amt = t.type === "GAME_POINTS" ? "" : `<div class="txn-amt ${pos ? "pos" : "neg"}">${pos ? "+" : ""}${inr(t.amount)}</div>`;
       return `
       <div class="txn">
         <div class="txn-left">
           <div class="txn-ico">${txnIcon(t.type)}</div>
-          <div>
-            <div class="txn-note">${escapeHtml(t.note)}</div>
-            <div class="txn-at">${timeAgo(t.at)}</div>
-          </div>
+          <div><div class="txn-note">${escapeHtml(t.note)}</div><div class="txn-at">${timeAgo(t.at)}</div></div>
         </div>
-        <div class="txn-amt ${pos ? "pos" : "neg"}">${pos ? "+" : ""}${inr(t.amount)}</div>
+        ${amt}
       </div>`;
     })
     .join("");
@@ -397,7 +755,74 @@ function walletMsg(text, ok) {
   el.className = "wallet-msg " + (ok ? "ok" : "err");
 }
 
-/* ---------- geolocation ---------- */
+/* ---------- spend categories + pay modal ---------- */
+async function loadSpendCats() {
+  try {
+    const { categories } = await api("/api/wallet/categories");
+    state.spendCats = categories;
+    const el = $("spendCats");
+    el.innerHTML = categories
+      .map((c) => `
+        <div class="spend-cat" data-cat="${c.id}">
+          <div class="spend-cat-ico">${c.icon}</div>
+          <div class="spend-cat-name">${escapeHtml(c.name)}</div>
+          <div class="spend-cat-sub">${c.merchants.length} places</div>
+        </div>`)
+      .join("");
+    el.querySelectorAll("[data-cat]").forEach((c) =>
+      c.addEventListener("click", () => openPay(c.getAttribute("data-cat")))
+    );
+  } catch (_e) { /* ignore */ }
+}
+function openPay(catId) {
+  const cat = (state.spendCats || []).find((c) => c.id === catId);
+  if (!cat) return;
+  let selected = cat.merchants[0];
+  $("payModalBody").innerHTML = `
+    <button class="modal-close" data-payclose>✕</button>
+    <div class="game-modal-head"><span class="game-modal-ico">${cat.icon}</span><div><h3>${escapeHtml(cat.name)}</h3><div class="section-sub">Pay a merchant · 2% cashback</div></div></div>
+    <p class="section-sub" style="margin-bottom:.4rem">Choose merchant</p>
+    <div class="pay-merchants" id="payMerchants">
+      ${cat.merchants.map((m, i) => `<button class="pay-merchant ${i === 0 ? "active" : ""}" data-m="${escapeHtml(m)}">${escapeHtml(m)}</button>`).join("")}
+    </div>
+    <form id="payForm">
+      <input id="payAmount" type="number" min="1" placeholder="Amount (₹)" style="width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:.7rem .85rem;border-radius:12px;margin-bottom:.7rem" />
+      <button class="btn btn-primary btn-block" type="submit">Pay now</button>
+    </form>
+    <div id="payMsg" class="wallet-msg"></div>`;
+  $("payModal").hidden = false;
+  $("payModalBody").querySelector("[data-payclose]").addEventListener("click", () => ($("payModal").hidden = true));
+  $("payMerchants").querySelectorAll("[data-m]").forEach((b) =>
+    b.addEventListener("click", () => {
+      selected = b.getAttribute("data-m");
+      $("payMerchants").querySelectorAll(".pay-merchant").forEach((x) => x.classList.toggle("active", x === b));
+    })
+  );
+  $("payForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const amount = Number($("payAmount").value);
+    const msg = $("payMsg");
+    if (!amount || amount <= 0) { msg.textContent = "Enter a valid amount."; msg.className = "wallet-msg err"; return; }
+    try {
+      const r = await api("/api/wallet/pay", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: state.userId, amount, to: selected, category: catId }),
+      });
+      state.wallet = r.wallet;
+      updateWalletUI();
+      msg.textContent = `Paid ${inr(amount)} to ${selected}${r.cashback ? ` · +${inr(r.cashback)} cashback` : ""}.`;
+      msg.className = "wallet-msg ok";
+      toast(`Paid ${inr(amount)} to ${selected}`);
+      setTimeout(() => ($("payModal").hidden = true), 1200);
+    } catch (err) {
+      msg.textContent = err.message;
+      msg.className = "wallet-msg err";
+    }
+  });
+}
+
+/* ---------- geolocation + theme ---------- */
 function useLocation() {
   if (!navigator.geolocation) return toast("Geolocation not supported.");
   $("geoNote").textContent = "Finding you…";
@@ -408,13 +833,11 @@ function useLocation() {
       loadMatches();
     },
     () => {
-      $("geoNote").textContent = "Location denied — showing all matches.";
+      $("geoNote").textContent = "Location denied — showing all.";
       toast("Couldn't get your location.");
     }
   );
 }
-
-/* ---------- theme ---------- */
 function toggleTheme() {
   const cur = document.documentElement.getAttribute("data-theme");
   const next = cur === "dark" ? "light" : "dark";
@@ -427,82 +850,69 @@ function toggleTheme() {
 function bindEvents() {
   document.querySelectorAll("[data-view]").forEach((el) => {
     el.addEventListener("click", () => showView(el.getAttribute("data-view")));
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter") showView(el.getAttribute("data-view")); });
   });
   $("nearMeBtn").addEventListener("click", useLocation);
+  $("refreshBtn").addEventListener("click", () => { loadMatches(); toast("Scores refreshed"); });
   $("themeBtn").addEventListener("click", toggleTheme);
 
-  document.querySelectorAll("#statusSeg .seg-btn").forEach((b) => {
+  document.querySelectorAll("#statusSeg .seg-btn").forEach((b) =>
     b.addEventListener("click", () => {
       state.filters.status = b.getAttribute("data-status");
       document.querySelectorAll("#statusSeg .seg-btn").forEach((x) => x.classList.toggle("active", x === b));
       loadMatches();
-    });
-  });
+    })
+  );
   $("regionSelect").addEventListener("change", (e) => {
     state.filters.region = e.target.value;
     loadMatches();
   });
 
-  // wallet forms
   $("addForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const amount = Number($("addAmount").value);
     if (!amount || amount <= 0) return walletMsg("Enter a valid amount.", false);
     try {
       state.wallet = await api("/api/wallet/add", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: state.userId, amount, method: $("addMethod").value }),
       });
       updateWalletUI();
       walletMsg(`Added ${inr(amount)}.`, true);
       $("addForm").reset();
-    } catch (err) {
-      walletMsg(err.message, false);
-    }
-  });
-  $("payForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const to = $("payTo").value.trim();
-    const amount = Number($("payAmount").value);
-    if (!to) return walletMsg("Enter a merchant name.", false);
-    if (!amount || amount <= 0) return walletMsg("Enter a valid amount.", false);
-    try {
-      const r = await api("/api/wallet/pay", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: state.userId, amount, to }),
-      });
-      state.wallet = r.wallet;
-      updateWalletUI();
-      walletMsg(`Paid ${inr(amount)} to ${to}${r.cashback ? ` · +${inr(r.cashback)} cashback` : ""}.`, true);
-      $("payForm").reset();
-    } catch (err) {
-      walletMsg(err.message, false);
-    }
+    } catch (err) { walletMsg(err.message, false); }
   });
   $("transferForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const toUser = $("transferTo").value.trim();
     const amount = Number($("transferAmount").value);
-    if (!toUser) return walletMsg("Enter a recipient user id.", false);
+    if (!toUser) return walletMsg("Enter a recipient.", false);
     if (!amount || amount <= 0) return walletMsg("Enter a valid amount.", false);
     try {
       state.wallet = await api("/api/wallet/transfer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: state.userId, toUser, amount }),
       });
       updateWalletUI();
       walletMsg(`Sent ${inr(amount)} to ${toUser}.`, true);
       $("transferForm").reset();
-    } catch (err) {
-      walletMsg(err.message, false);
-    }
+    } catch (err) { walletMsg(err.message, false); }
   });
-
+  $("convertBtn").addEventListener("click", async () => {
+    const w = state.wallet;
+    if (!w || (w.points || 0) < 100) return toast("Earn at least 100 points to convert.");
+    try {
+      const r = await api("/api/wallet/redeem-points", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: state.userId, points: w.points }),
+      });
+      state.wallet = r.wallet;
+      updateWalletUI();
+      toast(`Converted to ${inr(r.rupees)} in your wallet!`);
+    } catch (err) { toast(err.message); }
+  });
   $("changeUserBtn").addEventListener("click", () => {
-    const id = prompt("Enter a user id (this is your demo wallet handle):", state.userId);
+    const id = prompt("Enter a wallet handle:", state.userId);
     if (id && id.trim()) {
       state.userId = id.trim().slice(0, 60);
       localStorage.setItem("ss_user", state.userId);
@@ -511,11 +921,11 @@ function bindEvents() {
     }
   });
 
-  // close modals on backdrop click
-  ["playerModal", "watchModal"].forEach((id) => {
+  ["playerModal", "watchModal", "payModal", "gameModal"].forEach((id) => {
     $(id).addEventListener("click", (e) => {
       if (e.target.id === id) {
         if (id === "watchModal") closeWatch();
+        else if (id === "gameModal") closeGame();
         else $(id).hidden = true;
       }
     });
@@ -532,9 +942,13 @@ async function init() {
   bindEvents();
   try {
     await loadSports();
-    await Promise.all([loadMatches(), loadHighlights(), loadPlayers(), refreshWallet()]);
+    await Promise.all([loadMatches(), loadHighlights(), loadPlayers(), refreshWallet(), loadSpendCats()]);
   } catch (err) {
     toast("Failed to load: " + err.message);
   }
+  // auto-refresh live scores every 45s
+  state.matchTimer = setInterval(() => {
+    if (state.view === "live") loadMatches(true);
+  }, 45000);
 }
 document.addEventListener("DOMContentLoaded", init);
