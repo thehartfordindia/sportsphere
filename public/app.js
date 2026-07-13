@@ -657,6 +657,7 @@ async function loadGames() {
   await refreshWallet();
   loadLeaderboard();
   loadCheckin();
+  loadAchievements();
 }
 async function loadLeaderboard() {
   const list = $("lbList");
@@ -760,11 +761,54 @@ async function claimCheckin() {
     } else {
       toast(`🎁 +${d.reward} points! 🔥 ${d.streak}-day streak`);
       loadLeaderboard();
+      loadAchievements();
     }
   } catch (e) {
     btn.disabled = false;
     toast("Couldn't check in. Try again.");
   }
+}
+async function loadAchievements() {
+  const wrap = $("achievements");
+  if (!wrap) return;
+  try {
+    const uid = state.userId ? `?userId=${encodeURIComponent(state.userId)}` : "";
+    const d = await api(`/api/achievements${uid}`);
+    renderAchievements(d);
+  } catch (e) {
+    wrap.hidden = true;
+  }
+}
+function renderAchievements(d) {
+  const wrap = $("achievements");
+  if (!wrap) return;
+  wrap.hidden = false;
+  const prev = state._achUnlocked || new Set();
+  const now = new Set();
+  const cnt = $("achCount");
+  if (cnt) cnt.textContent = `${d.unlockedCount}/${d.total}`;
+  $("achGrid").innerHTML = (d.achievements || [])
+    .map((a) => {
+      if (a.unlocked) now.add(a.id);
+      const bar = a.unlocked
+        ? ""
+        : `<div class="ach-bar"><span style="width:${a.pct}%"></span></div>
+           <div class="ach-prog">${Math.min(a.value, a.target)} / ${a.target}</div>`;
+      return `<div class="ach-badge ${a.unlocked ? "on" : "off"}" title="${escapeHtml(a.desc)}">
+        <div class="ach-ico">${a.icon}</div>
+        <div class="ach-name">${escapeHtml(a.name)}</div>
+        <div class="ach-desc">${escapeHtml(a.desc)}</div>
+        ${bar}
+      </div>`;
+    })
+    .join("");
+  // Celebrate any newly-unlocked badge (only after the first load).
+  if (state._achUnlocked) {
+    for (const a of d.achievements) {
+      if (a.unlocked && !prev.has(a.id)) toast(`${a.icon} Achievement unlocked: ${a.name}!`);
+    }
+  }
+  state._achUnlocked = now;
 }
 function renderGameGrid() {
   const grid = $("gameGrid");
@@ -848,6 +892,7 @@ async function finishGame(gameId, score, summaryHtml) {
     state.wallet = result.wallet;
     updateWalletUI();
     loadLeaderboard();
+    loadAchievements();
   } catch (_e) { /* ignore */ }
   const g = state.games.find((x) => x.id === gameId) || { icon: "🎮", name: "Game" };
   $("gameModalBody").innerHTML = gameShell(g, `
