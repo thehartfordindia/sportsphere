@@ -2,15 +2,20 @@
 
 /**
  * SportSphere — backend (Node.js native http, no framework).
- * Provides:
- *   - Multi-sport catalog + matches (live / upcoming / finished) with regions
- *   - Player profiles (career + lifestyle)
- *   - "Near me" match ranking by geolocation
- *   - Demo wallet: balance, add money, pay, peer transfer, and
- *     WATCH-TO-EARN cashback (simulated money — no real funds move)
  *
- * NOTE: All money here is DEMO/PLAY money. Real peer-to-peer money movement
- * requires banking/PPI licenses, KYC and PCI compliance and is out of scope.
+ * Features:
+ *   - DYNAMIC multi-sport matches: real fixtures/results from TheSportsDB
+ *     (see sportsdata.js), with graceful fallback to bundled sample data.
+ *   - Highlights feed.
+ *   - Rich player profiles: career + personal/professional lifestyle +
+ *     social media, enriched with live data (photo, bio, handles) when online.
+ *   - GAMES: play mini-games to earn points; points convert to wallet money.
+ *   - WALLET (demo money): balance, points, add money, pay merchants across
+ *     categories (food, groceries, goods, bills, recharge), peer transfers,
+ *     watch-to-earn cashback, and points redemption.
+ *
+ * NOTE: All money here is DEMO/PLAY money. Real money movement needs
+ * banking/PPI licences, KYC and PCI compliance and is out of scope.
  */
 
 const http = require("http");
@@ -18,13 +23,14 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const store = require("./store");
+const sportsdata = require("./sportsdata");
 
 const PORT = Number(process.env.PORT) || 8795;
 const ADMIN_SECRET = process.env.ADMIN_SECRET || "change-me";
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 
 /* ============================================================
-   Static seed data
+   Static seed data (fallback + always-on content)
    ============================================================ */
 
 const SPORTS = [
@@ -40,8 +46,8 @@ const SPORTS = [
   { id: "baseball", name: "Baseball", icon: "⚾" },
 ];
 
-// Matches carry a rough venue geo for "near me" ranking.
-const MATCHES = [
+// Sample matches double as the fallback when the live API is unreachable.
+const SAMPLE_MATCHES = [
   { id: "m1", sport: "cricket", league: "IPL", home: "Hyderabad Sunrisers", away: "Chennai Kings", status: "LIVE", scoreHome: "142/3", scoreAway: "—", clock: "14.2 ov", region: "India", city: "Hyderabad", lat: 17.406, lon: 78.55, viewers: 82345 },
   { id: "m2", sport: "football", league: "Premier League", home: "Man City", away: "Liverpool", status: "LIVE", scoreHome: "2", scoreAway: "1", clock: "67'", region: "England", city: "Manchester", lat: 53.483, lon: -2.2, viewers: 154210 },
   { id: "m3", sport: "basketball", league: "NBA", home: "Lakers", away: "Celtics", status: "LIVE", scoreHome: "88", scoreAway: "91", clock: "Q3 4:12", region: "USA", city: "Los Angeles", lat: 34.043, lon: -118.267, viewers: 98120 },
@@ -51,27 +57,121 @@ const MATCHES = [
   { id: "m7", sport: "football", league: "La Liga", home: "Real Madrid", away: "Barcelona", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Starts 20:45", region: "Spain", city: "Madrid", lat: 40.453, lon: -3.688, viewers: 0 },
   { id: "m8", sport: "badminton", league: "BWF", home: "P.V. Sindhu", away: "Tai Tzu-ying", status: "FINISHED", scoreHome: "21-19, 21-17", scoreAway: "—", clock: "Full time", region: "India", city: "Hyderabad", lat: 17.41, lon: 78.47, viewers: 22100 },
   { id: "m9", sport: "esports", league: "Valorant Champions", home: "Team Vitality", away: "Sentinels", status: "LIVE", scoreHome: "12", scoreAway: "10", clock: "Map 2", region: "Global", city: "Berlin", lat: 52.52, lon: 13.405, viewers: 210500 },
-  { id: "m10", sport: "f1", league: "Formula 1", home: "Grand Prix", away: "Silverstone", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Race Sun 15:00", region: "England", city: "Silverstone", lat: 52.071, lon: -1.016, viewers: 0 },
+  { id: "m10", sport: "f1", league: "Formula 1", home: "British GP", away: "Silverstone", status: "UPCOMING", scoreHome: "—", scoreAway: "—", clock: "Race Sun 15:00", region: "England", city: "Silverstone", lat: 52.071, lon: -1.016, viewers: 0 },
   { id: "m11", sport: "hockey", league: "FIH Pro League", home: "India", away: "Australia", status: "LIVE", scoreHome: "3", scoreAway: "2", clock: "Q4 6:20", region: "India", city: "Bhubaneswar", lat: 20.296, lon: 85.824, viewers: 33400 },
   { id: "m12", sport: "baseball", league: "MLB", home: "Yankees", away: "Red Sox", status: "FINISHED", scoreHome: "5", scoreAway: "3", clock: "Final", region: "USA", city: "New York", lat: 40.829, lon: -73.926, viewers: 61200 },
 ];
 
 const HIGHLIGHTS = [
-  { id: "h1", matchId: "m8", title: "Sindhu's championship point smash", sport: "badminton", duration: "0:48", views: 1204000 },
+  { id: "h1", matchId: "m8", title: "Sindhu's championship point smash", sport: "badminton", duration: "0:48", views: 1204000, trending: true },
   { id: "h2", matchId: "m12", title: "Walk-off double in the 9th", sport: "baseball", duration: "1:12", views: 880000 },
-  { id: "h3", matchId: "m2", title: "Stunning long-range winner", sport: "football", duration: "0:35", views: 2450000 },
-  { id: "h4", matchId: "m1", title: "Six sixes in an over", sport: "cricket", duration: "1:30", views: 3100000 },
+  { id: "h3", matchId: "m2", title: "Stunning long-range winner", sport: "football", duration: "0:35", views: 2450000, trending: true },
+  { id: "h4", matchId: "m1", title: "Six sixes in an over", sport: "cricket", duration: "1:30", views: 3100000, trending: true },
   { id: "h5", matchId: "m9", title: "1v4 clutch to win the map", sport: "esports", duration: "0:52", views: 1650000 },
   { id: "h6", matchId: "m11", title: "Last-minute penalty corner goal", sport: "hockey", duration: "0:41", views: 540000 },
+  { id: "h7", matchId: "m3", title: "Buzzer-beater three to seal it", sport: "basketball", duration: "0:29", views: 1980000, trending: true },
+  { id: "h8", matchId: "m7", title: "El Clasico free-kick masterclass", sport: "football", duration: "0:44", views: 2760000 },
+  { id: "h9", matchId: "m5", title: "40-shot rally of the season", sport: "tennis", duration: "1:05", views: 720000 },
+  { id: "h10", matchId: "m4", title: "Super raid: 5 points in one dash", sport: "kabaddi", duration: "0:38", views: 610000 },
 ];
 
+// Rich player profiles — personal + professional + social.
 const PLAYERS = [
-  { id: "p1", name: "Virat Kohli", sport: "cricket", country: "India", role: "Batsman", age: 37, team: "Hyderabad Sunrisers", rating: 96, career: { matches: 520, runs: 26000, avg: 53.4, titles: 9 }, lifestyle: { fitness: "Elite marathoner diet, no sugar", interests: ["Fitness", "Football", "Investing"], foundation: "Youth sports charity" } },
-  { id: "p2", name: "Erling Haaland", sport: "football", country: "Norway", role: "Striker", age: 25, team: "Man City", rating: 94, career: { matches: 310, goals: 280, assists: 60, titles: 7 }, lifestyle: { fitness: "Sleep-optimized, cold plunges", interests: ["Gaming", "Golf"], foundation: "Grassroots football" } },
-  { id: "p3", name: "LeBron James", sport: "basketball", country: "USA", role: "Forward", age: 41, team: "Lakers", rating: 93, career: { matches: 1490, points: 40000, assists: 11000, titles: 4 }, lifestyle: { fitness: "$1M/yr on body maintenance", interests: ["Business", "Media", "Wine"], foundation: "I PROMISE School" } },
-  { id: "p4", name: "P.V. Sindhu", sport: "badminton", country: "India", role: "Singles", age: 30, team: "India", rating: 90, career: { matches: 420, titles: 14, olympicMedals: 2 }, lifestyle: { fitness: "6am court + gym daily", interests: ["Cooking", "Travel"], foundation: "Girls in sport" } },
-  { id: "p5", name: "Carlos Alcaraz", sport: "tennis", country: "Spain", role: "Singles", age: 22, team: "Spain", rating: 92, career: { matches: 320, titles: 16, slams: 4 }, lifestyle: { fitness: "Clay-court endurance blocks", interests: ["Golf", "Music"], foundation: "Tennis academy scholarships" } },
-  { id: "p6", name: "Pawan Sehrawat", sport: "kabaddi", country: "India", role: "Raider", age: 29, team: "Telugu Titans", rating: 89, career: { matches: 180, raidPoints: 1400, titles: 3 }, lifestyle: { fitness: "Wrestling + sprint training", interests: ["Farming", "Fitness"], foundation: "Rural sports camps" } },
+  {
+    id: "p1", name: "Virat Kohli", sport: "cricket", country: "India", role: "Batsman", age: 37, team: "Royal Challengers", rating: 96,
+    tagline: "Run machine · fitness icon", born: "Nov 5, 1988 · Delhi, India",
+    career: { matches: 520, runs: 26000, avg: 53.4, centuries: 80, titles: 9 },
+    lifestyle: { fitness: "Elite endurance training, plant-forward no-sugar diet", diet: "Vegetarian, high-protein", interests: ["Fitness", "Football", "Investing"], foundation: "Virat Kohli Foundation — youth sport", family: "Married to actor Anushka Sharma; two children" },
+    social: { twitter: "https://twitter.com/imVkohli", instagram: "https://instagram.com/virat.kohli", followersM: 271, engagement: "2.4%" },
+    bio: "One of the greatest run-scorers in cricket history, known for his aggressive style, world-class fitness and business ventures across fashion, fitness and esports.",
+  },
+  {
+    id: "p2", name: "Erling Haaland", sport: "football", country: "Norway", role: "Striker", age: 25, team: "Man City", rating: 94,
+    tagline: "Goal machine", born: "Jul 21, 2000 · Leeds, England",
+    career: { matches: 310, goals: 280, assists: 60, titles: 7 },
+    lifestyle: { fitness: "Sleep-optimised recovery, cold plunges, blue-light control", diet: "Grass-fed meat, liver, heart", interests: ["Gaming", "Golf", "Meditation"], foundation: "Grassroots football in Norway", family: "Son of ex-footballer Alf-Inge Haaland" },
+    social: { twitter: "https://twitter.com/ErlingHaaland", instagram: "https://instagram.com/erling.haaland", followersM: 43, engagement: "6.1%" },
+    bio: "A record-breaking striker famed for his pace, power and clinical finishing, rewriting scoring records in his early twenties.",
+  },
+  {
+    id: "p3", name: "LeBron James", sport: "basketball", country: "USA", role: "Forward", age: 41, team: "LA Lakers", rating: 93,
+    tagline: "King James", born: "Dec 30, 1984 · Akron, USA",
+    career: { matches: 1490, points: 40000, assists: 11000, titles: 4 },
+    lifestyle: { fitness: "Reportedly ~$1M/yr on body maintenance, cryo & yoga", diet: "Lean, low-sugar, seasonal", interests: ["Business", "Media", "Wine"], foundation: "LeBron James Family Foundation — I PROMISE School", family: "Married to Savannah James; three children" },
+    social: { twitter: "https://twitter.com/KingJames", instagram: "https://instagram.com/kingjames", followersM: 159, engagement: "1.9%" },
+    bio: "A four-time NBA champion and the league's all-time leading scorer, equally influential as an athlete, entrepreneur and philanthropist.",
+  },
+  {
+    id: "p4", name: "P.V. Sindhu", sport: "badminton", country: "India", role: "Singles", age: 30, team: "India", rating: 90,
+    tagline: "Olympic medallist", born: "Jul 5, 1995 · Hyderabad, India",
+    career: { matches: 420, titles: 14, olympicMedals: 2, worldChamp: 1 },
+    lifestyle: { fitness: "6am court sessions + strength & agility work", diet: "South-Indian balanced, coach-planned", interests: ["Cooking", "Travel", "Mentoring"], foundation: "Girls in sport initiatives", family: "From a family of volleyball players" },
+    social: { twitter: "https://twitter.com/Pvsindhu1", instagram: "https://instagram.com/pvsindhu1", followersM: 6.1, engagement: "3.3%" },
+    bio: "India's badminton superstar and two-time Olympic medallist, celebrated for her powerful smashes and relentless court coverage.",
+  },
+  {
+    id: "p5", name: "Carlos Alcaraz", sport: "tennis", country: "Spain", role: "Singles", age: 22, team: "Spain", rating: 92,
+    tagline: "Next-gen No.1", born: "May 5, 2003 · Murcia, Spain",
+    career: { matches: 320, titles: 16, slams: 4 },
+    lifestyle: { fitness: "Clay-court endurance blocks, explosive footwork drills", diet: "Mediterranean, coach-managed", interests: ["Golf", "Music", "Football"], foundation: "Tennis academy scholarships", family: "Trained by ex-No.1 Juan Carlos Ferrero" },
+    social: { twitter: "https://twitter.com/carlosalcaraz", instagram: "https://instagram.com/carlitosalcarazz", followersM: 8.4, engagement: "5.2%" },
+    bio: "A dynamic all-court player and multiple Grand Slam champion, widely seen as the face of tennis's new generation.",
+  },
+  {
+    id: "p6", name: "Pawan Sehrawat", sport: "kabaddi", country: "India", role: "Raider", age: 29, team: "Telugu Titans", rating: 89,
+    tagline: "Hi-Flyer", born: "Jan 1, 1997 · Delhi, India",
+    career: { matches: 180, raidPoints: 1400, titles: 3 },
+    lifestyle: { fitness: "Wrestling base + sprint & plyometric training", diet: "High-protein North-Indian", interests: ["Farming", "Fitness"], foundation: "Rural sports camps", family: "Grew up wrestling in Delhi akhadas" },
+    social: { twitter: "https://twitter.com/pawansehrawat07", instagram: "https://instagram.com/pawansehrawat_07", followersM: 1.2, engagement: "4.8%" },
+    bio: "Kabaddi's record-breaking raider, famed for single-handedly winning matches with explosive multi-point raids.",
+  },
+  {
+    id: "p7", name: "Shubman Gill", sport: "cricket", country: "India", role: "Batsman", age: 26, team: "Gujarat Titans", rating: 88,
+    tagline: "Prince of Indian cricket", born: "Sep 8, 1999 · Fazilka, India",
+    career: { matches: 220, runs: 9800, avg: 47.9, centuries: 22, titles: 2 },
+    lifestyle: { fitness: "Mobility-first training, disciplined recovery", diet: "Punjabi balanced, nutritionist-led", interests: ["Cars", "Photography"], foundation: "Cricket coaching for rural kids", family: "Coached by his father from childhood" },
+    social: { twitter: "https://twitter.com/ShubmanGill", instagram: "https://instagram.com/shubmangill", followersM: 14, engagement: "5.6%" },
+    bio: "An elegant top-order batsman and captain, known for effortless timing and a fast-rising leadership career.",
+  },
+  {
+    id: "p8", name: "Kylian Mbappe", sport: "football", country: "France", role: "Forward", age: 27, team: "Real Madrid", rating: 95,
+    tagline: "Speed & silverware", born: "Dec 20, 1998 · Paris, France",
+    career: { matches: 400, goals: 320, assists: 130, titles: 12 },
+    lifestyle: { fitness: "Sprint mechanics, recovery science, mental coaching", diet: "Lean performance nutrition", interests: ["Gaming", "Philanthropy", "Fashion"], foundation: "Inspired By KM — funds kids' sport", family: "Brother Ethan also a footballer" },
+    social: { twitter: "https://twitter.com/KMbappe", instagram: "https://instagram.com/k.mbappe", followersM: 120, engagement: "3.1%" },
+    bio: "A World Cup-winning forward whose blistering pace and finishing make him one of the most marketable athletes on earth.",
+  },
+];
+
+// Playable mini-games. Points earned convert to wallet money.
+const GAMES = [
+  { id: "reaction", name: "Reaction Rush", icon: "⚡", tagline: "Tap the instant it turns green", color: "#22c55e", maxPoints: 300, how: "Wait for green, then tap fast. Faster = more points." },
+  { id: "quiz", name: "Sports IQ", icon: "🧠", tagline: "5 quick sports trivia questions", color: "#6366f1", maxPoints: 500, how: "Answer correctly for 100 points each." },
+  { id: "target", name: "Target Blitz", icon: "🎯", tagline: "Hit as many targets in 20s", color: "#f97316", maxPoints: 400, how: "Tap moving targets — 20 points per hit." },
+  { id: "streak", name: "Score Streak", icon: "🃏", tagline: "Remember the winning sequence", color: "#ec4899", maxPoints: 350, how: "Repeat the flashing pattern to score." },
+];
+
+// Trivia bank for the quiz game (server is source of truth for scoring).
+const QUIZ = [
+  { q: "How many players are on a football (soccer) pitch per team?", options: ["9", "10", "11", "12"], answer: 2 },
+  { q: "How many points is a basketball free throw worth?", options: ["1", "2", "3", "4"], answer: 0 },
+  { q: "In cricket, how many balls are in one over?", options: ["4", "5", "6", "7"], answer: 2 },
+  { q: "Which country has won the most FIFA World Cups?", options: ["Germany", "Brazil", "Italy", "Argentina"], answer: 1 },
+  { q: "A tennis match is won by taking how many sets (best of 5)?", options: ["2", "3", "4", "5"], answer: 1 },
+  { q: "How many rings are on the Olympic flag?", options: ["4", "5", "6", "7"], answer: 1 },
+  { q: "In kabaddi, how many players are on court per team?", options: ["5", "6", "7", "8"], answer: 2 },
+  { q: "What is a score of zero called in tennis?", options: ["Nil", "Love", "Duck", "Blank"], answer: 1 },
+  { q: "How long is a standard football match (excl. stoppage)?", options: ["60 min", "80 min", "90 min", "100 min"], answer: 2 },
+  { q: "Which sport uses a shuttlecock?", options: ["Squash", "Badminton", "Table Tennis", "Cricket"], answer: 1 },
+];
+
+// Merchants the wallet can spend at, grouped by category.
+const SPEND_CATEGORIES = [
+  { id: "food", name: "Food & Dining", icon: "🍔", merchants: ["Sunrise Cafe", "Biryani Point", "Pizza Junction", "Chai Nagar"] },
+  { id: "groceries", name: "Groceries", icon: "🛒", merchants: ["FreshMart", "DailyBasket", "GreenGrocer", "SuperSave"] },
+  { id: "goods", name: "Shopping & Goods", icon: "🛍️", merchants: ["StyleHub", "GadgetWorld", "HomeNeeds", "SportGear"] },
+  { id: "bills", name: "Bills & Utilities", icon: "🧾", merchants: ["PowerBill", "WaterWorks", "GasConnect", "Broadband+"] },
+  { id: "recharge", name: "Recharge & Travel", icon: "🚌", merchants: ["MobileTopup", "MetroCard", "CabRide", "FuelPay"] },
 ];
 
 /* ============================================================
@@ -153,34 +253,60 @@ function serveStatic(res, fileName) {
 }
 
 /* ============================================================
-   Wallet (demo money) + watch-to-earn cashback
+   Wallet (demo money) + points economy
    ============================================================ */
 const SIGNUP_BONUS = 500;
-const WATCH_REWARD_PER_MIN = 2; // ₹2 demo cashback per minute watched
-const WATCH_DAILY_CAP = 50; // max ₹50/day from watching
-const PAY_CASHBACK_RATE = 0.02; // 2% cashback on payments
+const WATCH_REWARD_PER_MIN = 2;
+const WATCH_DAILY_CAP = 50;
+const PAY_CASHBACK_RATE = 0.02;
+const POINTS_PER_RUPEE = 100; // 100 points = ₹1
+const DAILY_POINTS_CAP = 1500; // max points earnable per day from games
+const MIN_REDEEM_POINTS = 100;
 
+function today() {
+  return new Date().toISOString().slice(0, 10);
+}
 function newWallet(userId) {
   return {
     userId,
     balance: SIGNUP_BONUS,
     cashbackEarned: 0,
+    points: 0,
     watchMinutesToday: 0,
-    watchDate: new Date().toISOString().slice(0, 10),
+    watchDate: today(),
+    pointsToday: 0,
+    pointsDate: today(),
+    gamesPlayed: 0,
+    streakDays: 1,
+    lastPlayDate: null,
     transactions: [
       { id: genId("TXN"), type: "BONUS", amount: SIGNUP_BONUS, note: "Welcome bonus", at: new Date().toISOString() },
     ],
   };
 }
+// Ensure older stored wallets have all fields (migration-safe).
+function normalizeWallet(w) {
+  if (w.points == null) w.points = 0;
+  if (w.pointsToday == null) w.pointsToday = 0;
+  if (w.pointsDate == null) w.pointsDate = today();
+  if (w.gamesPlayed == null) w.gamesPlayed = 0;
+  if (w.streakDays == null) w.streakDays = 1;
+  if (w.lastPlayDate === undefined) w.lastPlayDate = null;
+  return w;
+}
 function pushTxn(wallet, type, amount, note) {
   wallet.transactions.unshift({ id: genId("TXN"), type, amount, note, at: new Date().toISOString() });
-  wallet.transactions = wallet.transactions.slice(0, 50);
+  wallet.transactions = wallet.transactions.slice(0, 60);
 }
-function rolloverWatchDay(wallet) {
-  const today = new Date().toISOString().slice(0, 10);
-  if (wallet.watchDate !== today) {
-    wallet.watchDate = today;
+function rolloverDays(wallet) {
+  const t = today();
+  if (wallet.watchDate !== t) {
+    wallet.watchDate = t;
     wallet.watchMinutesToday = 0;
+  }
+  if (wallet.pointsDate !== t) {
+    wallet.pointsDate = t;
+    wallet.pointsToday = 0;
   }
 }
 async function loadOrCreateWallet(userId) {
@@ -189,8 +315,16 @@ async function loadOrCreateWallet(userId) {
     wallet = newWallet(userId);
     await store.saveWallet(userId, wallet);
   }
-  rolloverWatchDay(wallet);
+  normalizeWallet(wallet);
+  rolloverDays(wallet);
   return wallet;
+}
+
+// Convert a raw game score into points, honouring the game's max.
+function scoreToPoints(gameId, score) {
+  const g = GAMES.find((x) => x.id === gameId);
+  if (!g) return 0;
+  return Math.round(clampNumber(score, 0, g.maxPoints, 0));
 }
 
 /* ============================================================
@@ -223,24 +357,33 @@ const server = http.createServer(async (req, res) => {
       const sport = query.get("sport");
       const status = query.get("status");
       const region = query.get("region");
-      let list = MATCHES.map((m) => ({ ...m }));
+
+      // Try live data; fall back to sample data if unavailable.
+      let source = "live";
+      let base = await sportsdata.getLiveMatches();
+      if (!base || !base.length) {
+        base = SAMPLE_MATCHES.map((m) => ({ ...m, source: "sample" }));
+        source = "sample";
+      }
+
+      let list = base.map((m) => ({ ...m }));
       if (sport && sport !== "all") list = list.filter((m) => m.sport === sport);
       if (status && status !== "all") list = list.filter((m) => m.status === status.toUpperCase());
       if (region && region !== "all") list = list.filter((m) => m.region === region);
+
       const lat = Number(query.get("lat"));
       const lon = Number(query.get("lon"));
       if (!Number.isNaN(lat) && !Number.isNaN(lon)) {
         list = list
-          .map((m) => ({ ...m, distanceKm: Math.round(haversineKm(lat, lon, m.lat, m.lon)) }))
+          .map((m) => ({ ...m, distanceKm: m.lat != null ? Math.round(haversineKm(lat, lon, m.lat, m.lon)) : null }))
           .sort((a, b) => {
-            // live first, then nearest
             if (a.status === "LIVE" && b.status !== "LIVE") return -1;
             if (b.status === "LIVE" && a.status !== "LIVE") return 1;
-            return a.distanceKm - b.distanceKm;
+            return (a.distanceKm == null ? 1e9 : a.distanceKm) - (b.distanceKm == null ? 1e9 : b.distanceKm);
           });
       }
-      const regions = [...new Set(MATCHES.map((m) => m.region))];
-      return sendJson(res, 200, { matches: list, regions });
+      const regions = [...new Set(base.map((m) => m.region).filter(Boolean))];
+      return sendJson(res, 200, { matches: list, regions, source });
     }
 
     if (pathname === "/api/highlights") {
@@ -252,7 +395,7 @@ const server = http.createServer(async (req, res) => {
 
     if (pathname === "/api/players") {
       const sport = query.get("sport");
-      let list = PLAYERS;
+      let list = PLAYERS.map((p) => ({ id: p.id, name: p.name, sport: p.sport, country: p.country, role: p.role, rating: p.rating, tagline: p.tagline, team: p.team }));
       if (sport && sport !== "all") list = list.filter((p) => p.sport === sport);
       return sendJson(res, 200, { players: list });
     }
@@ -261,7 +404,85 @@ const server = http.createServer(async (req, res) => {
       const id = decodeURIComponent(pathname.split("/")[3] || "");
       const found = PLAYERS.find((p) => p.id === id);
       if (!found) return sendJson(res, 404, { error: "Player not found" });
-      return sendJson(res, 200, found);
+      const out = JSON.parse(JSON.stringify(found));
+      try {
+        const live = await sportsdata.getPlayerEnrichment(found.name);
+        if (live) {
+          out.photo = live.photo || null;
+          out.banner = live.banner || null;
+          if (live.bio) out.bio = live.bio;
+          if (live.birthDate) out.born = live.birthDate + (live.birthPlace ? ` · ${live.birthPlace}` : "");
+          out.height = live.height || null;
+          out.weight = live.weight || null;
+          out.dataSource = "live";
+          out.social = Object.assign({}, out.social, {
+            twitter: live.social.twitter || (out.social && out.social.twitter) || null,
+            instagram: live.social.instagram || (out.social && out.social.instagram) || null,
+            facebook: live.social.facebook || null,
+            website: live.social.website || null,
+            youtube: live.social.youtube || null,
+          });
+        } else {
+          out.dataSource = "sample";
+        }
+      } catch (_e) {
+        out.dataSource = "sample";
+      }
+      return sendJson(res, 200, out);
+    }
+
+    // ---- Games ----
+    if (pathname === "/api/games") {
+      return sendJson(res, 200, { games: GAMES, pointsPerRupee: POINTS_PER_RUPEE, dailyCap: DAILY_POINTS_CAP });
+    }
+    if (pathname === "/api/games/quiz") {
+      const qs = QUIZ.slice(0, 5).map((x, i) => ({ i, q: x.q, options: x.options }));
+      return sendJson(res, 200, { questions: qs });
+    }
+    if (pathname === "/api/games/quiz/score" && req.method === "POST") {
+      const body = await readBody(req);
+      const answers = Array.isArray(body.answers) ? body.answers : [];
+      let correct = 0;
+      QUIZ.slice(0, 5).forEach((x, i) => {
+        if (Number(answers[i]) === x.answer) correct += 1;
+      });
+      return sendJson(res, 200, { correct, total: 5, score: correct * 100 });
+    }
+    if (pathname === "/api/games/score" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const gameId = cleanText(body.gameId || "", 30);
+      const game = GAMES.find((g) => g.id === gameId);
+      if (!game) return sendJson(res, 400, { error: "Unknown game." });
+      const wallet = await loadOrCreateWallet(userId);
+
+      const t = today();
+      if (wallet.lastPlayDate && wallet.lastPlayDate !== t) {
+        const diff = (Date.parse(t) - Date.parse(wallet.lastPlayDate)) / 86400000;
+        wallet.streakDays = diff === 1 ? wallet.streakDays + 1 : 1;
+      } else if (!wallet.lastPlayDate) {
+        wallet.streakDays = 1;
+      }
+      wallet.lastPlayDate = t;
+
+      let earned = scoreToPoints(gameId, body.score);
+      const bonusMult = 1 + Math.min(0.5, (wallet.streakDays - 1) * 0.05);
+      earned = Math.round(earned * bonusMult);
+
+      const remaining = Math.max(0, DAILY_POINTS_CAP - wallet.pointsToday);
+      const applied = Math.min(earned, remaining);
+      wallet.points += applied;
+      wallet.pointsToday += applied;
+      wallet.gamesPlayed += 1;
+      if (applied > 0) pushTxn(wallet, "GAME_POINTS", 0, `${game.name}: +${applied} pts (x${bonusMult.toFixed(2)} streak)`);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, {
+        wallet,
+        pointsEarned: applied,
+        cappedToday: wallet.pointsToday >= DAILY_POINTS_CAP,
+        streakDays: wallet.streakDays,
+        rupeeValue: applied / POINTS_PER_RUPEE,
+      });
     }
 
     // ---- Wallet ----
@@ -270,6 +491,9 @@ const server = http.createServer(async (req, res) => {
       const wallet = await loadOrCreateWallet(userId);
       await store.saveWallet(userId, wallet);
       return sendJson(res, 200, wallet);
+    }
+    if (pathname === "/api/wallet/categories") {
+      return sendJson(res, 200, { categories: SPEND_CATEGORIES });
     }
 
     if (pathname === "/api/wallet/add" && req.method === "POST") {
@@ -289,17 +513,19 @@ const server = http.createServer(async (req, res) => {
       const userId = cleanText(body.userId || "guest", 60);
       const amount = clampNumber(body.amount, 1, 100000, 0);
       const to = cleanText(body.to || "Merchant", 60);
+      const category = cleanText(body.category || "", 20);
+      const cat = SPEND_CATEGORIES.find((c) => c.id === category);
       if (amount <= 0) return sendJson(res, 400, { error: "Enter a valid amount." });
       const wallet = await loadOrCreateWallet(userId);
       if (wallet.balance < amount) return sendJson(res, 400, { error: "Insufficient balance." });
       wallet.balance -= amount;
-      pushTxn(wallet, "PAY", -amount, `Paid ${to}`);
-      // instant cashback for paying via the app
+      const label = cat ? `${cat.icon} ${to} (${cat.name})` : `Paid ${to}`;
+      pushTxn(wallet, "PAY", -amount, label);
       const cashback = Math.round(amount * PAY_CASHBACK_RATE);
       if (cashback > 0) {
         wallet.balance += cashback;
         wallet.cashbackEarned += cashback;
-        pushTxn(wallet, "CASHBACK", cashback, `2% cashback on payment to ${to}`);
+        pushTxn(wallet, "CASHBACK", cashback, `2% cashback on ${to}`);
       }
       await store.saveWallet(userId, wallet);
       return sendJson(res, 200, { wallet, cashback });
@@ -317,7 +543,6 @@ const server = http.createServer(async (req, res) => {
       wallet.balance -= amount;
       pushTxn(wallet, "TRANSFER", -amount, `Sent to ${toUser}`);
       await store.saveWallet(userId, wallet);
-      // credit recipient's demo wallet too
       const recipient = await loadOrCreateWallet(toUser);
       recipient.balance += amount;
       pushTxn(recipient, "RECEIVE", amount, `Received from ${userId}`);
@@ -325,7 +550,22 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, wallet);
     }
 
-    // WATCH-TO-EARN: client reports minutes watched; server awards capped cashback
+    if (pathname === "/api/wallet/redeem-points" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      const points = clampNumber(body.points, 0, wallet.points, 0);
+      if (points < MIN_REDEEM_POINTS) return sendJson(res, 400, { error: `Redeem at least ${MIN_REDEEM_POINTS} points.` });
+      if (points > wallet.points) return sendJson(res, 400, { error: "Not enough points." });
+      const rupees = Math.floor(points / POINTS_PER_RUPEE);
+      const spend = rupees * POINTS_PER_RUPEE;
+      wallet.points -= spend;
+      wallet.balance += rupees;
+      pushTxn(wallet, "REDEEM", rupees, `Redeemed ${spend} points to wallet`);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, { wallet, rupees });
+    }
+
     if (pathname === "/api/wallet/watch" && req.method === "POST") {
       const body = await readBody(req);
       const userId = cleanText(body.userId || "guest", 60);
