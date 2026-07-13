@@ -3,36 +3,45 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SportSphere — Live Sports Near You, Highlights, Players & Wallet</title>
+    <title>SportSphere — Live Sports, Stars, Games & Wallet</title>
     <meta
       name="description"
-      content="Watch live sports near you, catch highlights, explore player profiles, and use a demo wallet with watch-to-earn cashback and peer transfers."
+      content="Live multi-sport scores, star player profiles with lifestyle & socials, play-to-earn games, and a demo wallet you can spend on food, groceries and more."
     />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
     <header class="topbar">
-      <div class="brand">
-        <span class="brand-mark">🏟️</span>
-        <div>
-          <div class="brand-name">SportSphere</div>
-          <div class="brand-tag">Live sports, near you</div>
+      <div class="topbar-inner">
+        <div class="brand" data-view="live" role="button" tabindex="0">
+          <span class="brand-mark">🏟️</span>
+          <div>
+            <div class="brand-name">SportSphere</div>
+            <div class="brand-tag">Live · Play · Earn</div>
+          </div>
+        </div>
+        <nav class="view-tabs" id="viewTabs">
+          <button class="view-tab active" data-view="live"><span>🔴</span> Live</button>
+          <button class="view-tab" data-view="highlights"><span>🎬</span> Highlights</button>
+          <button class="view-tab" data-view="players"><span>⭐</span> Players</button>
+          <button class="view-tab" data-view="games"><span>🎮</span> Games</button>
+          <button class="view-tab" data-view="wallet"><span>👛</span> Wallet</button>
+        </nav>
+        <div class="top-actions">
+          <button class="points-pill" id="pointsPill" data-view="games" title="Your game points">
+            <span>🏅</span><span id="pointsBalance">0</span>
+          </button>
+          <button class="wallet-pill" id="walletPill" data-view="wallet" title="Open wallet">
+            <span class="wallet-ico">👛</span>
+            <span id="walletBalance">₹0</span>
+          </button>
+          <button class="theme-btn" id="themeBtn" title="Toggle theme">🌙</button>
         </div>
       </div>
-      <nav class="view-tabs" id="viewTabs">
-        <button class="view-tab active" data-view="live">🔴 Live &amp; Matches</button>
-        <button class="view-tab" data-view="highlights">🎬 Highlights</button>
-        <button class="view-tab" data-view="players">⭐ Players</button>
-        <button class="view-tab" data-view="wallet">👛 Wallet</button>
-      </nav>
-      <div class="top-actions">
-        <button class="wallet-pill" id="walletPill" data-view="wallet" title="Open wallet">
-          <span class="wallet-ico">👛</span>
-          <span id="walletBalance">₹0</span>
-        </button>
-        <button class="theme-btn" id="themeBtn" title="Toggle theme">🌙</button>
+      <!-- Live ticker -->
+      <div class="ticker" id="ticker" hidden>
+        <div class="ticker-track" id="tickerTrack"></div>
       </div>
     </header>
 
@@ -41,31 +50,33 @@
       <section class="view active" data-view-panel="live">
         <div class="hero">
           <div class="hero-copy">
-            <h1>What's playing <span class="accent">near you</span>?</h1>
-            <p>Live scores from every sport — ranked by what's live and closest to you.</p>
+            <span class="hero-eyebrow" id="dataBadge">● Loading data…</span>
+            <h1>Every match, <span class="accent">as it happens</span>.</h1>
+            <p>Real fixtures and results across 10 sports — ranked by what's live and closest to you. Watch to earn wallet cashback.</p>
             <div class="hero-controls">
-              <button class="btn btn-primary" id="nearMeBtn">📍 Use my location</button>
-              <span class="hero-note" id="geoNote">Location off — showing all matches.</span>
+              <button class="btn btn-primary" id="nearMeBtn">📍 Sort by near me</button>
+              <button class="btn btn-ghost" id="refreshBtn">↻ Refresh scores</button>
+              <span class="hero-note" id="geoNote">Showing all live & upcoming.</span>
             </div>
           </div>
           <div class="hero-stats">
-            <div class="stat"><b id="liveCount">0</b><span>Live now</span></div>
+            <div class="stat"><b id="liveCount">0</b><span>🔴 Live now</span></div>
             <div class="stat"><b id="matchCount">0</b><span>Matches</span></div>
             <div class="stat"><b id="sportCount">0</b><span>Sports</span></div>
           </div>
         </div>
 
-        <div class="filter-row">
+        <div class="filter-bar">
           <div class="chips" id="sportChips"></div>
-        </div>
-        <div class="filter-row secondary">
-          <div class="seg" id="statusSeg">
-            <button class="seg-btn active" data-status="all">All</button>
-            <button class="seg-btn" data-status="LIVE">🔴 Live</button>
-            <button class="seg-btn" data-status="UPCOMING">⏳ Upcoming</button>
-            <button class="seg-btn" data-status="FINISHED">✅ Finished</button>
+          <div class="filter-controls">
+            <div class="seg" id="statusSeg">
+              <button class="seg-btn active" data-status="all">All</button>
+              <button class="seg-btn" data-status="LIVE">🔴 Live</button>
+              <button class="seg-btn" data-status="UPCOMING">⏳ Upcoming</button>
+              <button class="seg-btn" data-status="FINISHED">✅ Finished</button>
+            </div>
+            <select id="regionSelect" class="region-select" aria-label="Region"></select>
           </div>
-          <select id="regionSelect" class="region-select" aria-label="Region"></select>
         </div>
 
         <div class="match-grid" id="matchGrid"></div>
@@ -73,51 +84,99 @@
 
       <!-- ===================== HIGHLIGHTS ===================== -->
       <section class="view" data-view-panel="highlights">
-        <h2 class="section-title">🎬 Highlights</h2>
-        <p class="section-sub">Best moments across sports. Watching earns you demo cashback.</p>
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">🎬 Highlights</h2>
+            <p class="section-sub">The best moments across every sport. Tap to watch (demo).</p>
+          </div>
+        </div>
         <div class="chips" id="hlSportChips"></div>
         <div class="highlight-grid" id="highlightGrid"></div>
       </section>
 
       <!-- ===================== PLAYERS ===================== -->
       <section class="view" data-view-panel="players">
-        <h2 class="section-title">⭐ Players</h2>
-        <p class="section-sub">Career stats and how the stars live off the field.</p>
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">⭐ Star Players</h2>
+            <p class="section-sub">Career, personal life, lifestyle and how they connect with fans on social media.</p>
+          </div>
+        </div>
         <div class="chips" id="plSportChips"></div>
         <div class="player-grid" id="playerGrid"></div>
       </section>
 
+      <!-- ===================== GAMES ===================== -->
+      <section class="view" data-view-panel="games">
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">🎮 Play &amp; Earn</h2>
+            <p class="section-sub">Play quick games, earn points, and convert them to real wallet money. Play daily to grow your streak bonus.</p>
+          </div>
+        </div>
+
+        <div class="games-top">
+          <div class="points-card">
+            <div class="points-card-label">Your points</div>
+            <div class="points-card-value" id="gamesPointsBig">0</div>
+            <div class="points-card-sub">≈ <b id="pointsRupee">₹0</b> · <span id="streakLabel">🔥 1-day streak</span></div>
+            <button class="btn btn-primary btn-block" id="convertBtn">Convert points → wallet</button>
+            <div class="points-hint" id="pointsHint">100 points = ₹1 · earn up to 1500 pts/day</div>
+          </div>
+          <div class="games-earn-info">
+            <h3>How it works</h3>
+            <ol class="how-list">
+              <li>🎯 Pick a game and play — every game rewards points.</li>
+              <li>🔥 Play on consecutive days for up to <b>+50%</b> streak bonus.</li>
+              <li>💰 Convert points to wallet money and spend on food, groceries &amp; more.</li>
+            </ol>
+          </div>
+        </div>
+
+        <div class="game-grid" id="gameGrid"></div>
+      </section>
+
       <!-- ===================== WALLET ===================== -->
       <section class="view" data-view-panel="wallet">
-        <h2 class="section-title">👛 SportSphere Wallet</h2>
-        <p class="section-sub demo-note">
-          Demo wallet — all money here is play money. Real money transfer needs an RBI-licensed
-          partner and KYC.
-        </p>
+        <div class="section-head">
+          <div>
+            <h2 class="section-title">👛 SportSphere Wallet</h2>
+            <p class="section-sub demo-note">Demo wallet — play money for showcase. Real transfers need an RBI-licensed partner &amp; KYC.</p>
+          </div>
+        </div>
 
-        <div class="wallet-top">
+        <div class="wallet-hero">
           <div class="wallet-card">
-            <div class="wallet-card-label">Balance</div>
+            <div class="wallet-card-top">
+              <span class="wallet-card-label">Wallet balance</span>
+              <span class="wallet-chip">SportSphere Pay</span>
+            </div>
             <div class="wallet-card-balance" id="walletBigBalance">₹0</div>
-            <div class="wallet-card-sub">
-              Cashback earned: <b id="cashbackEarned">₹0</b>
+            <div class="wallet-card-row">
+              <span>🏅 <b id="walletPoints">0</b> pts</span>
+              <span>💰 Cashback <b id="cashbackEarned">₹0</b></span>
             </div>
             <div class="wallet-id">
-              You are: <b id="walletUserId">guest</b>
-              <button class="link-btn" id="changeUserBtn">change</button>
+              <span>Handle: <b id="walletUserId">guest</b></span>
+              <button class="link-btn" id="changeUserBtn">switch</button>
             </div>
           </div>
           <div class="watch-earn-card">
-            <div class="wallet-card-label">Watch-to-earn</div>
-            <p>Earn ₹2 demo cashback per minute you watch (up to ₹50/day).</p>
+            <div class="wallet-card-label">Watch-to-earn today</div>
             <div class="watch-progress">
               <div class="watch-bar"><span id="watchBarFill"></span></div>
               <div class="watch-progress-text" id="watchProgressText">₹0 / ₹50 today</div>
             </div>
-            <button class="btn btn-ghost" data-view="live">Find a match to watch →</button>
+            <p>Earn ₹2 cashback per minute watched (₹50/day cap).</p>
+            <button class="btn btn-ghost btn-block" data-view="live">Find a match to watch →</button>
           </div>
         </div>
 
+        <!-- Spend hub -->
+        <h3 class="block-title">Spend your balance</h3>
+        <div class="spend-cats" id="spendCats"></div>
+
+        <!-- Money actions -->
         <div class="wallet-actions">
           <form class="wallet-form" id="addForm">
             <h3>➕ Add money</h3>
@@ -129,43 +188,41 @@
             </select>
             <button class="btn btn-primary btn-block" type="submit">Add</button>
           </form>
-          <form class="wallet-form" id="payForm">
-            <h3>💳 Pay a merchant</h3>
-            <input id="payTo" type="text" placeholder="Merchant / shop name" />
-            <input id="payAmount" type="number" min="1" placeholder="Amount (₹)" />
-            <button class="btn btn-primary btn-block" type="submit">Pay (2% cashback)</button>
-          </form>
           <form class="wallet-form" id="transferForm">
             <h3>🔁 Send to a friend</h3>
-            <input id="transferTo" type="text" placeholder="Friend's user id" />
+            <input id="transferTo" type="text" placeholder="Friend's handle" />
             <input id="transferAmount" type="number" min="1" placeholder="Amount (₹)" />
             <button class="btn btn-primary btn-block" type="submit">Send</button>
           </form>
         </div>
         <div id="walletMsg" class="wallet-msg"></div>
 
-        <h3 class="txn-title">Recent activity</h3>
+        <h3 class="block-title">Recent activity</h3>
         <div class="txn-list" id="txnList"></div>
       </section>
     </main>
 
-    <!-- ===================== Player modal ===================== -->
+    <!-- ===================== Modals ===================== -->
     <div id="playerModal" class="modal" hidden>
-      <div class="modal-card" id="playerModalBody"></div>
+      <div class="modal-card modal-lg" id="playerModalBody"></div>
     </div>
-
-    <!-- ===================== Watch modal (watch-to-earn) ===================== -->
     <div id="watchModal" class="modal" hidden>
       <div class="modal-card watch-modal" id="watchModalBody"></div>
+    </div>
+    <div id="payModal" class="modal" hidden>
+      <div class="modal-card" id="payModalBody"></div>
+    </div>
+    <div id="gameModal" class="modal" hidden>
+      <div class="modal-card modal-lg" id="gameModalBody"></div>
     </div>
 
     <div id="toast" class="toast" hidden></div>
 
     <footer class="site-foot">
       <span>SportSphere · demo build</span>
-      <span class="foot-dim">Scores & wallet are simulated for demonstration.</span>
+      <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=2" defer></script>
+    <script src="app.js?v=3" defer></script>
   </body>
 </html>
