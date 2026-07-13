@@ -122,6 +122,7 @@ function showView(name) {
   );
   if (name === "wallet") refreshWallet();
   if (name === "games") loadGames();
+  if (name === "wallet") loadStats();
   window.scrollTo({ top: 0, behavior: "smooth" });
 }
 
@@ -1342,6 +1343,41 @@ async function refreshWallet() {
     state.wallet = await api(`/api/wallet?userId=${encodeURIComponent(state.userId)}`);
     updateWalletUI();
   } catch (_e) { /* ignore */ }
+}
+async function loadStats() {
+  const card = $("statsCard");
+  if (!card) return;
+  try {
+    const d = await api(`/api/stats?userId=${encodeURIComponent(state.userId)}`);
+    renderStats(d);
+  } catch (e) {
+    card.hidden = true;
+  }
+}
+function renderStats(d) {
+  const card = $("statsCard");
+  if (!card) return;
+  card.hidden = false;
+  const rankEl = $("statsRank");
+  if (rankEl) rankEl.textContent = `Rank #${d.rank} of ${d.totalPlayers}`;
+  const tiles = [
+    { icon: "🏅", label: "Points", value: d.points.toLocaleString(), sub: `≈ ₹${d.rupees}` },
+    { icon: "🎮", label: "Games played", value: d.gamesPlayed, sub: "keep playing!" },
+    { icon: "🎁", label: "Check-in streak", value: `${d.checkinStreak}d`, sub: "daily reward" },
+    { icon: "🧠", label: "Trivia streak", value: `${d.triviaStreak}d`, sub: `best ${d.triviaBest}d` },
+    { icon: "🏆", label: "Badges", value: `${d.badgesUnlocked}/${d.badgesTotal}`, sub: "unlocked" },
+    { icon: "💰", label: "Wallet", value: `₹${d.balance.toLocaleString()}`, sub: "balance" },
+  ];
+  $("statsGrid").innerHTML = tiles
+    .map(
+      (t) => `<div class="stat-tile">
+        <div class="stat-ico">${t.icon}</div>
+        <div class="stat-val">${t.value}</div>
+        <div class="stat-label">${t.label}</div>
+        <div class="stat-sub">${escapeHtml(String(t.sub))}</div>
+      </div>`
+    )
+    .join("");
 }
 function updateWalletUI() {
   const w = state.wallet;
