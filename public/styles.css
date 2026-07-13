@@ -577,10 +577,37 @@ a { color: var(--primary); }
 .seq-cell.c2 { box-shadow: 0 0 0 3px #f97316 inset; background: #f97316; }
 .seq-cell.c3 { box-shadow: 0 0 0 3px #ec4899 inset; background: #ec4899; }
 
+/* Penalty Shootout */
+.pk-scoreline { font-weight: 800; font-size: 0.95rem; margin-bottom: 0.4rem; }
+.pk-goal { position: relative; width: 100%; max-width: 340px; height: 130px; margin: 0.4rem auto; border: 4px solid #e2e8f0; border-bottom: 8px solid #94a3b8; border-radius: 8px 8px 0 0; background: repeating-linear-gradient(90deg, rgba(148,163,184,0.15) 0 2px, transparent 2px 18px), repeating-linear-gradient(0deg, rgba(148,163,184,0.15) 0 2px, transparent 2px 18px); overflow: hidden; }
+.pk-keeper { position: absolute; bottom: 6px; left: 50%; transform: translateX(-50%); font-size: 2.6rem; transition: transform 0.5s cubic-bezier(0.34,1.56,0.64,1); }
+.pk-msg { font-weight: 700; margin: 0.6rem 0; min-height: 1.4em; }
+.pk-corners { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; width: 100%; max-width: 340px; }
+.pk-corner { padding: 0.7rem 0.4rem; }
+
+/* Memory Match */
+.mem-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.6rem; width: 100%; max-width: 340px; margin: 0.6rem auto 0; }
+.mem-card { aspect-ratio: 1; border: 2px solid var(--line); background: var(--surface-2); border-radius: var(--radius-sm); font-size: 1.7rem; cursor: pointer; transition: transform 0.12s, background 0.2s; }
+.mem-card.flipped { background: color-mix(in srgb, var(--primary) 12%, var(--surface)); border-color: var(--primary); }
+.mem-card.done { background: color-mix(in srgb, var(--good, #22c55e) 18%, var(--surface)); border-color: #22c55e; cursor: default; }
+.mem-card:active { transform: scale(0.95); }
+
+/* Stat Attack (higher / lower) */
+.hl-current, .hl-next { text-align: center; width: 100%; max-width: 360px; padding: 0.8rem 1rem; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--surface-2); }
+.hl-label { font-size: 0.85rem; color: var(--ink-soft); font-weight: 700; }
+.hl-value { font-size: 1.9rem; font-weight: 900; margin-top: 0.2rem; }
+.hl-vs { font-weight: 800; color: var(--ink-soft); margin: 0.35rem 0; }
+.hl-controls { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; width: 100%; max-width: 360px; margin-top: 0.9rem; }
+
 /* Pay modal */
 .pay-merchants { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin: 0.8rem 0 1rem; }
 .pay-merchant { border: 1px solid var(--line); background: var(--surface-2); border-radius: var(--radius-sm); padding: 0.7rem; cursor: pointer; font-weight: 700; font-size: 0.85rem; text-align: center; }
 .pay-merchant.active { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 12%, transparent); color: var(--primary); }
+.pay-field-label { display: block; font-size: 0.8rem; font-weight: 700; color: var(--ink-soft); margin-bottom: 0.35rem; }
+.pay-select, .pay-amount-input { width: 100%; border: 1px solid var(--line); background: var(--bg); color: var(--ink); padding: 0.7rem 0.85rem; border-radius: 12px; margin-bottom: 0.7rem; font-size: 0.95rem; }
+.pay-quick { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.9rem; }
+.pay-chip { border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 999px; padding: 0.4rem 0.9rem; cursor: pointer; font-weight: 700; font-size: 0.85rem; }
+.pay-chip:hover { border-color: var(--primary); color: var(--primary); }
 
 /* Toast */
 .toast {
