@@ -97,6 +97,17 @@ async function saveWallet(userId, wallet) {
   writeJsonFile(WALLETS_FILE, all);
 }
 
+/** Return every wallet as an array of { id, wallet }. */
+async function listWallets() {
+  await ensureReady();
+  if (usingDb()) {
+    const res = await pool.query("SELECT id, data FROM wallets");
+    return res.rows.map((r) => ({ id: r.id, wallet: r.data }));
+  }
+  const all = readJsonFile(WALLETS_FILE, {});
+  return Object.keys(all).map((id) => ({ id, wallet: all[id] }));
+}
+
 /** users is an object keyed by lowercased username. */
 async function getUser(id) {
   await ensureReady();
@@ -122,4 +133,4 @@ async function saveUser(id, user) {
   writeJsonFile(USERS_FILE, all);
 }
 
-module.exports = { mode, ensureReady, getWallet, saveWallet, getUser, saveUser };
+module.exports = { mode, ensureReady, getWallet, saveWallet, listWallets, getUser, saveUser };
