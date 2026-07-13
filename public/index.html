@@ -8,7 +8,14 @@
       name="description"
       content="Live multi-sport scores, star player profiles with lifestyle & socials, play-to-earn games, and a demo wallet you can spend on food, groceries and more."
     />
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#5b54f0" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="SportSphere" />
+    <link rel="icon" type="image/svg+xml" href="icon.svg" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css?v=8" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
@@ -224,6 +231,9 @@
     <div id="matchModal" class="modal" hidden>
       <div class="modal-card modal-lg" id="matchModalBody"></div>
     </div>
+    <div id="profileModal" class="modal" hidden>
+      <div class="modal-card" id="profileModalBody"></div>
+    </div>
 
     <!-- ===================== Account menu ===================== -->
     <div id="accountMenu" class="account-menu" hidden>
@@ -235,6 +245,8 @@
         </div>
       </div>
       <button class="account-menu-item" data-view="wallet" id="menuWallet">👛 My wallet</button>
+      <button class="account-menu-item" id="menuProfile">⚙️ Edit profile</button>
+      <button class="account-menu-item" id="menuInstall" hidden>📲 Install app</button>
       <button class="account-menu-item" id="menuLogout">🚪 Log out</button>
     </div>
 
@@ -289,6 +301,6 @@
       <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=7" defer></script>
+    <script src="app.js?v=8" defer></script>
   </body>
 </html>
