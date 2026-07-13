@@ -386,6 +386,29 @@ function clampNumber(v, min, max, fallback) {
   if (Number.isNaN(n)) return fallback;
   return Math.min(max, Math.max(min, n));
 }
+
+/* ---------- auth helpers ---------- */
+// Normalise a username into a safe wallet handle / user id.
+function normalizeHandle(v) {
+  return String(v == null ? "" : v)
+    .toLowerCase()
+    .replace(/[^a-z0-9_.]/g, "")
+    .slice(0, 30);
+}
+// PBKDF2 password hash (salted). Returns "salt:hash" hex string.
+function hashPassword(password, salt) {
+  const useSalt = salt || crypto.randomBytes(16).toString("hex");
+  const hash = crypto.pbkdf2Sync(String(password), useSalt, 100000, 32, "sha256").toString("hex");
+  return `${useSalt}:${hash}`;
+}
+function verifyPassword(password, stored) {
+  if (!stored || !stored.includes(":")) return false;
+  const [salt] = stored.split(":");
+  const candidate = hashPassword(password, salt);
+  const a = Buffer.from(candidate);
+  const b = Buffer.from(stored);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
 function sendJson(res, status, payload) {
   const body = JSON.stringify(payload);
   res.writeHead(status, {
@@ -699,6 +722,38 @@ const server = http.createServer(async (req, res) => {
         streakDays: wallet.streakDays,
         rupeeValue: applied / POINTS_PER_RUPEE,
       });
+    }
+
+    // ---- Auth ----
+    if (pathname === "/api/auth/register" && req.method === "POST") {
+      const body = await readBody(req);
+      const handle = normalizeHandle(body.username);
+      const name = cleanText(body.name || "", 40) || handle;
+      const password = String(body.password || "");
+      if (handle.length < 3) return sendJson(res, 400, { error: "Username needs at least 3 letters/numbers." });
+      if (password.length < 4) return sendJson(res, 400, { error: "Password needs at least 4 characters." });
+      const existing = await store.getUser(handle);
+      if (existing) return sendJson(res, 409, { error: "That username is already taken." });
+      const user = {
+        id: handle,
+        name,
+        pass: hashPassword(password),
+        createdAt: new Date().toISOString(),
+      };
+      await store.saveUser(handle, user);
+      // Give the new user a starter wallet.
+      await loadOrCreateWallet(handle);
+      return sendJson(res, 200, { userId: handle, name });
+    }
+    if (pathname === "/api/auth/login" && req.method === "POST") {
+      const body = await readBody(req);
+      const handle = normalizeHandle(body.username);
+      const password = String(body.password || "");
+      const user = await store.getUser(handle);
+      if (!user || !verifyPassword(password, user.pass)) {
+        return sendJson(res, 401, { error: "Wrong username or password." });
+      }
+      return sendJson(res, 200, { userId: handle, name: user.name || handle });
     }
 
     // ---- Wallet ----
