@@ -496,6 +496,11 @@ const MIN_REDEEM_POINTS = 100;
 // Daily check-in: escalating 7-day cycle (points), day 7 is the jackpot.
 const CHECKIN_REWARDS = [20, 30, 40, 60, 80, 120, 250];
 
+// Daily trivia: one Question of the Day, correct answers build a streak.
+const TRIVIA_BASE = 30; // points for a correct answer
+const TRIVIA_STREAK_BONUS = 10; // extra points per consecutive-day streak
+const TRIVIA_BONUS_CAP = 7; // streak days after which bonus stops growing
+
 // Achievement badges — unlocked by reaching milestones on wallet stats.
 const ACHIEVEMENTS = [
   { id: "welcome", icon: "🎉", name: "Welcome Aboard", desc: "Join SportSphere", metric: "always", target: 1 },
@@ -538,6 +543,10 @@ function newWallet(userId) {
     lastPlayDate: null,
     checkinStreak: 0,
     lastCheckinDate: null,
+    triviaStreak: 0,
+    triviaBest: 0,
+    lastTriviaDate: null,
+    lastTriviaCorrect: false,
     transactions: [
       { id: genId("TXN"), type: "BONUS", amount: SIGNUP_BONUS, note: "Welcome bonus", at: new Date().toISOString() },
     ],  };
@@ -552,6 +561,10 @@ function normalizeWallet(w) {
   if (w.lastPlayDate === undefined) w.lastPlayDate = null;
   if (w.checkinStreak == null) w.checkinStreak = 0;
   if (w.lastCheckinDate === undefined) w.lastCheckinDate = null;
+  if (w.triviaStreak == null) w.triviaStreak = 0;
+  if (w.triviaBest == null) w.triviaBest = 0;
+  if (w.lastTriviaDate === undefined) w.lastTriviaDate = null;
+  if (w.lastTriviaCorrect == null) w.lastTriviaCorrect = false;
   return w;
 }
 function pushTxn(wallet, type, amount, note) {
@@ -603,6 +616,33 @@ function checkinInfo(wallet) {
     canClaim: !claimedToday,
     todayIndex,
     todayReward: CHECKIN_REWARDS[claimedToday ? (streak - 1 + 7) % 7 : streak % 7],
+  };
+}
+
+// Deterministic Question-of-the-Day index (same for everyone each day).
+function triviaIndexForToday() {
+  const dayNum = Math.floor(Date.parse(today()) / 86400000);
+  return dayNum % QUIZ.length;
+}
+function triviaReward(streak) {
+  return TRIVIA_BASE + Math.min(streak - 1, TRIVIA_BONUS_CAP) * TRIVIA_STREAK_BONUS;
+}
+function triviaInfo(wallet) {
+  const t = today();
+  const idx = triviaIndexForToday();
+  const q = QUIZ[idx];
+  const answeredToday = wallet.lastTriviaDate === t;
+  let streak = wallet.triviaStreak || 0;
+  // Streak lapses if the last correct answer was before yesterday.
+  if (wallet.lastTriviaDate && !answeredToday && daysBetween(wallet.lastTriviaDate, t) > 1) streak = 0;
+  return {
+    question: { q: q.q, options: q.options },
+    answeredToday,
+    lastCorrect: answeredToday ? !!wallet.lastTriviaCorrect : null,
+    correctIndex: answeredToday ? q.answer : null,
+    streak,
+    best: wallet.triviaBest || 0,
+    nextReward: triviaReward(streak + 1),
   };
 }
 
@@ -837,6 +877,39 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, buildAchievements(wallet));
     }
 
+    // ---- Daily trivia ----
+    if (pathname === "/api/trivia" && req.method === "GET") {
+      const userId = cleanText(query.get("userId") || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, triviaInfo(wallet));
+    }
+    if (pathname === "/api/trivia/answer" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      const t = today();
+      if (wallet.lastTriviaDate === t) {
+        return sendJson(res, 200, { already: true, ...triviaInfo(wallet), wallet });
+      }
+      const idx = triviaIndexForToday();
+      const q = QUIZ[idx];
+      const choice = clampNumber(body.choice, 0, q.options.length - 1, -1);
+      const correct = choice === q.answer;
+      const cont = wallet.lastTriviaDate && daysBetween(wallet.lastTriviaDate, t) === 1 && wallet.lastTriviaCorrect;
+      const newStreak = correct ? (cont ? (wallet.triviaStreak || 0) + 1 : 1) : 0;
+      const reward = correct ? triviaReward(newStreak) : 0;
+      wallet.triviaStreak = newStreak;
+      wallet.triviaBest = Math.max(wallet.triviaBest || 0, newStreak);
+      wallet.lastTriviaDate = t;
+      wallet.lastTriviaCorrect = correct;
+      if (reward > 0) {
+        wallet.points += reward;
+        pushTxn(wallet, "TRIVIA", 0, `Daily trivia correct: +${reward} pts (${newStreak}-day streak)`);
+      }
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, { already: false, correct, correctIndex: q.answer, reward, ...triviaInfo(wallet), wallet });
+    }
     // ---- Quiz ----
     if (pathname === "/api/games/quiz") {
       // Pick 5 random questions; return their real ids so scoring stays honest.
