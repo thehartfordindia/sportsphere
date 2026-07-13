@@ -234,6 +234,11 @@ async function loadHighlights() {
 async function loadPlayers() {
   const { players } = await api(`/api/players?sport=${state.plSport}`);
   const grid = $("playerGrid");
+  if (!players.length) {
+    const sport = sportById(state.plSport);
+    grid.innerHTML = `<div class="empty-state">${sport ? sport.icon : "⭐"} No star players listed for ${sport ? escapeHtml(sport.name) : "this sport"} yet.</div>`;
+    return;
+  }
   grid.innerHTML = players
     .map((p) => {
       const sport = sportById(p.sport);
