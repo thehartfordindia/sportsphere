@@ -484,6 +484,9 @@ function startGame(id) {
   if (id === "quiz") return startQuiz();
   if (id === "target") return startTarget();
   if (id === "streak") return startStreak();
+  if (id === "penalty") return startPenalty();
+  if (id === "memory") return startMemory();
+  if (id === "higherlower") return startHigherLower();
 }
 async function finishGame(gameId, score, summaryHtml) {
   let result = { pointsEarned: 0, rupeeValue: 0, streakDays: 1 };
@@ -549,9 +552,11 @@ function startReaction() {
 async function startQuiz() {
   const g = state.game.def;
   let questions = [];
+  let qids = [];
   try {
     const r = await api("/api/games/quiz");
     questions = r.questions;
+    qids = r.qids || [];
   } catch (_e) {
     return finishGame("quiz", 0, `<p>Couldn't load questions.</p>`);
   }
@@ -581,7 +586,7 @@ async function startQuiz() {
       scoreData = await api("/api/games/quiz/score", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, qids }),
       });
     } catch (_e) { /* ignore */ }
     finishGame("quiz", scoreData.score, `<p>🧠 ${scoreData.correct}/${scoreData.total} correct</p>`);
@@ -701,6 +706,162 @@ function startStreak() {
   newRound();
 }
 
+/* --- Game 5: Penalty Shootout --- */
+function startPenalty() {
+  const g = state.game.def;
+  const corners = [
+    { id: "L", label: "◀ Left" },
+    { id: "C", label: "▲ Center" },
+    { id: "R", label: "Right ▶" },
+  ];
+  let shot = 0, goals = 0;
+  const total = 5;
+  function renderShot(msg) {
+    $("gameModalBody").innerHTML = gameShell(g, `
+      <div class="game-stage">
+        <div class="pk-scoreline">Shot ${Math.min(shot + 1, total)} / ${total} · ⚽ Goals: <b>${goals}</b></div>
+        <div class="pk-goal">
+          <div class="pk-keeper" id="pkKeeper">🧤</div>
+          <div class="pk-net"></div>
+        </div>
+        <div class="pk-msg" id="pkMsg">${msg || "Pick your corner and beat the keeper!"}</div>
+        <div class="pk-corners">
+          ${corners.map((c) => `<button class="btn btn-primary pk-corner" data-c="${c.id}">${c.label}</button>`).join("")}
+        </div>
+      </div>`);
+    bindGameClose();
+    $("gameModalBody").querySelectorAll("[data-c]").forEach((b) =>
+      b.addEventListener("click", () => takeShot(b.getAttribute("data-c")))
+    );
+  }
+  function takeShot(pick) {
+    const keeper = corners[Math.floor(Math.random() * corners.length)].id;
+    const keeperEl = $("pkKeeper");
+    keeperEl.style.transform = keeper === "L" ? "translateX(-90px)" : keeper === "R" ? "translateX(90px)" : "translateY(-10px)";
+    const scored = pick !== keeper;
+    if (scored) goals += 1;
+    shot += 1;
+    const msg = scored ? "⚽ GOAL! Back of the net." : "🧤 Saved! Keeper guessed right.";
+    $("pkMsg").textContent = msg;
+    $("gameModalBody").querySelectorAll("[data-c]").forEach((b) => (b.disabled = true));
+    setTimeout(() => {
+      if (shot >= total) finishGame("penalty", goals * 80, `<p>⚽ ${goals}/${total} scored</p>`);
+      else renderShot(msg);
+    }, 1100);
+  }
+  renderShot();
+}
+
+/* --- Game 6: Memory Match --- */
+function startMemory() {
+  const g = state.game.def;
+  const icons = ["⚽", "🏏", "🏀", "🎾", "🏸", "🏑"];
+  let deck = icons.concat(icons).sort(() => Math.random() - 0.5);
+  let flipped = [], matched = [], moves = 0, lock = false;
+  function render() {
+    $("gameModalBody").innerHTML = gameShell(g, `
+      <div class="game-stage">
+        <div class="quiz-progress">Moves: <b id="memMoves">${moves}</b> · Matched: <b id="memMatched">${matched.length / 2}</b>/6</div>
+        <div class="mem-grid">
+          ${deck.map((ic, i) => {
+            const shown = flipped.includes(i) || matched.includes(i);
+            return `<button class="mem-card ${shown ? "flipped" : ""} ${matched.includes(i) ? "done" : ""}" data-i="${i}">${shown ? ic : "❓"}</button>`;
+          }).join("")}
+        </div>
+      </div>`);
+    bindGameClose();
+    $("gameModalBody").querySelectorAll("[data-i]").forEach((b) =>
+      b.addEventListener("click", () => flip(Number(b.getAttribute("data-i"))))
+    );
+  }
+  function flip(i) {
+    if (lock || flipped.includes(i) || matched.includes(i)) return;
+    flipped.push(i);
+    render();
+    if (flipped.length === 2) {
+      moves += 1;
+      lock = true;
+      const [a, b] = flipped;
+      if (deck[a] === deck[b]) {
+        matched.push(a, b);
+        flipped = [];
+        lock = false;
+        render();
+        if (matched.length === deck.length) {
+          const score = Math.max(80, 400 - Math.max(0, moves - 6) * 25);
+          setTimeout(() => finishGame("memory", score, `<p>🧩 Solved in ${moves} moves</p>`), 500);
+        }
+      } else {
+        setTimeout(() => { flipped = []; lock = false; render(); }, 800);
+      }
+    }
+  }
+  render();
+}
+
+/* --- Game 7: Stat Attack (higher or lower) --- */
+function startHigherLower() {
+  const g = state.game.def;
+  const bank = [
+    { label: "Cristiano Ronaldo · Instagram followers", value: 640, unit: "M" },
+    { label: "Lionel Messi · Instagram followers", value: 500, unit: "M" },
+    { label: "Virat Kohli · Instagram followers", value: 271, unit: "M" },
+    { label: "LeBron James · Instagram followers", value: 159, unit: "M" },
+    { label: "Neymar Jr · Instagram followers", value: 225, unit: "M" },
+    { label: "Kylian Mbappe · Instagram followers", value: 120, unit: "M" },
+    { label: "Roger Federer · career titles", value: 103, unit: "" },
+    { label: "Sachin Tendulkar · int'l centuries", value: 100, unit: "" },
+    { label: "Michael Phelps · Olympic golds", value: 23, unit: "" },
+    { label: "Usain Bolt · Olympic golds", value: 8, unit: "" },
+    { label: "Tom Brady · Super Bowl wins", value: 7, unit: "" },
+    { label: "Michael Jordan · NBA titles", value: 6, unit: "" },
+  ];
+  let pool = bank.slice().sort(() => Math.random() - 0.5);
+  let cur = pool.pop();
+  let streak = 0;
+  function render(reveal) {
+    const nxt = pool[pool.length - 1];
+    $("gameModalBody").innerHTML = gameShell(g, `
+      <div class="game-stage">
+        <div class="quiz-progress">Correct in a row: <b>${streak}</b> · ${streak * 75} pts</div>
+        <div class="hl-current">
+          <div class="hl-label">${escapeHtml(cur.label)}</div>
+          <div class="hl-value">${cur.value}${cur.unit}</div>
+        </div>
+        <div class="hl-vs">vs</div>
+        <div class="hl-next">
+          <div class="hl-label">${nxt ? escapeHtml(nxt.label) : "—"}</div>
+          <div class="hl-value">${reveal && nxt ? nxt.value + nxt.unit : "❓"}</div>
+        </div>
+        <div class="hl-controls">
+          <button class="btn btn-primary" data-guess="higher">⬆ Higher</button>
+          <button class="btn btn-ghost" data-guess="lower">⬇ Lower</button>
+        </div>
+      </div>`);
+    bindGameClose();
+    $("gameModalBody").querySelectorAll("[data-guess]").forEach((b) =>
+      b.addEventListener("click", () => guess(b.getAttribute("data-guess")))
+    );
+  }
+  function guess(dir) {
+    const nxt = pool.pop();
+    if (!nxt) return finishGame("higherlower", streak * 75, `<p>📈 ${streak} in a row</p>`);
+    const correct = dir === "higher" ? nxt.value >= cur.value : nxt.value <= cur.value;
+    render(true);
+    if (correct) {
+      streak += 1;
+      cur = nxt;
+      if (!pool.length || streak >= 6) {
+        return setTimeout(() => finishGame("higherlower", Math.min(450, streak * 75), `<p>📈 ${streak} in a row</p>`), 700);
+      }
+      setTimeout(() => render(false), 700);
+    } else {
+      setTimeout(() => finishGame("higherlower", streak * 75, `<p>📈 ${streak} in a row · next was ${nxt.value}${nxt.unit}</p>`), 900);
+    }
+  }
+  render(false);
+}
+
 /* ---------- wallet ---------- */
 async function refreshWallet() {
   try {
@@ -778,6 +939,7 @@ function openPay(catId) {
   const cat = (state.spendCats || []).find((c) => c.id === catId);
   if (!cat) return;
   let selected = cat.merchants[0];
+  const payMethods = ["Wallet Balance", "UPI", "Credit Card", "Debit Card", "Net Banking"];
   $("payModalBody").innerHTML = `
     <button class="modal-close" data-payclose>✕</button>
     <div class="game-modal-head"><span class="game-modal-ico">${cat.icon}</span><div><h3>${escapeHtml(cat.name)}</h3><div class="section-sub">Pay a merchant · 2% cashback</div></div></div>
@@ -786,7 +948,14 @@ function openPay(catId) {
       ${cat.merchants.map((m, i) => `<button class="pay-merchant ${i === 0 ? "active" : ""}" data-m="${escapeHtml(m)}">${escapeHtml(m)}</button>`).join("")}
     </div>
     <form id="payForm">
-      <input id="payAmount" type="number" min="1" placeholder="Amount (₹)" style="width:100%;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:.7rem .85rem;border-radius:12px;margin-bottom:.7rem" />
+      <label class="pay-field-label">Pay with</label>
+      <select id="payMethod" class="pay-select">
+        ${payMethods.map((m) => `<option value="${escapeHtml(m)}">${escapeHtml(m)}</option>`).join("")}
+      </select>
+      <input id="payAmount" type="number" min="1" placeholder="Amount (₹)" class="pay-amount-input" />
+      <div class="pay-quick" id="payQuick">
+        ${[100, 250, 500, 1000].map((v) => `<button type="button" class="pay-chip" data-amt="${v}">₹${v}</button>`).join("")}
+      </div>
       <button class="btn btn-primary btn-block" type="submit">Pay now</button>
     </form>
     <div id="payMsg" class="wallet-msg"></div>`;
@@ -798,23 +967,27 @@ function openPay(catId) {
       $("payMerchants").querySelectorAll(".pay-merchant").forEach((x) => x.classList.toggle("active", x === b));
     })
   );
+  $("payQuick").querySelectorAll("[data-amt]").forEach((b) =>
+    b.addEventListener("click", () => { $("payAmount").value = b.getAttribute("data-amt"); })
+  );
   $("payForm").addEventListener("submit", async (e) => {
     e.preventDefault();
     const amount = Number($("payAmount").value);
+    const method = $("payMethod").value;
     const msg = $("payMsg");
     if (!amount || amount <= 0) { msg.textContent = "Enter a valid amount."; msg.className = "wallet-msg err"; return; }
     try {
       const r = await api("/api/wallet/pay", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: state.userId, amount, to: selected, category: catId }),
+        body: JSON.stringify({ userId: state.userId, amount, to: selected, category: catId, method }),
       });
       state.wallet = r.wallet;
       updateWalletUI();
-      msg.textContent = `Paid ${inr(amount)} to ${selected}${r.cashback ? ` · +${inr(r.cashback)} cashback` : ""}.`;
+      msg.textContent = `Paid ${inr(amount)} to ${selected} via ${method}${r.cashback ? ` · +${inr(r.cashback)} cashback` : ""}.`;
       msg.className = "wallet-msg ok";
       toast(`Paid ${inr(amount)} to ${selected}`);
-      setTimeout(() => ($("payModal").hidden = true), 1200);
+      setTimeout(() => ($("payModal").hidden = true), 1300);
     } catch (err) {
       msg.textContent = err.message;
       msg.className = "wallet-msg err";
