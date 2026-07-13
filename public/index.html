@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="SportSphere" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=15" />
+    <link rel="stylesheet" href="styles.css?v=16" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
@@ -235,6 +235,15 @@
           </div>
         </div>
 
+        <!-- Your stats snapshot -->
+        <div class="stats-card" id="statsCard" hidden>
+          <div class="stats-head">
+            <h3 class="block-title">📊 Your stats</h3>
+            <span class="stats-rank" id="statsRank">Rank —</span>
+          </div>
+          <div class="stats-grid" id="statsGrid"></div>
+        </div>
+
         <!-- Spend hub -->
         <h3 class="block-title">Spend your balance</h3>
         <div class="spend-cats" id="spendCats"></div>
@@ -356,6 +365,6 @@
       <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=15" defer></script>
+    <script src="app.js?v=16" defer></script>
   </body>
 </html>
