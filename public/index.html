@@ -8,7 +8,7 @@
       name="description"
       content="Live multi-sport scores, star player profiles with lifestyle & socials, play-to-earn games, and a demo wallet you can spend on food, groceries and more."
     />
-    <link rel="stylesheet" href="styles.css?v=6" />
+    <link rel="stylesheet" href="styles.css?v=7" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
@@ -37,6 +37,10 @@
             <span id="walletBalance">₹0</span>
           </button>
           <button class="theme-btn" id="themeBtn" title="Toggle theme">🌙</button>
+          <button class="account-btn" id="accountBtn" title="Your account">
+            <span class="account-avatar" id="accountAvatar">?</span>
+            <span class="account-name" id="accountName">Sign in</span>
+          </button>
         </div>
       </div>
       <!-- Live ticker -->
@@ -221,6 +225,63 @@
       <div class="modal-card modal-lg" id="matchModalBody"></div>
     </div>
 
+    <!-- ===================== Account menu ===================== -->
+    <div id="accountMenu" class="account-menu" hidden>
+      <div class="account-menu-head">
+        <span class="account-avatar lg" id="menuAvatar">?</span>
+        <div>
+          <div class="account-menu-name" id="menuName">Guest</div>
+          <div class="account-menu-handle" id="menuHandle">@guest</div>
+        </div>
+      </div>
+      <button class="account-menu-item" data-view="wallet" id="menuWallet">👛 My wallet</button>
+      <button class="account-menu-item" id="menuLogout">🚪 Log out</button>
+    </div>
+
+    <!-- ===================== Auth overlay ===================== -->
+    <div id="authOverlay" class="auth-overlay" hidden>
+      <div class="auth-bg"></div>
+      <div class="auth-card">
+        <button class="auth-close" id="authClose" title="Continue as guest">✕</button>
+        <div class="auth-brand">
+          <span class="auth-mark">🏟️</span>
+          <div>
+            <div class="auth-title">SportSphere</div>
+            <div class="auth-subtitle">Live · Play · Earn</div>
+          </div>
+        </div>
+        <div class="auth-tabs" id="authTabs">
+          <button class="auth-tab active" data-auth-tab="login">Log in</button>
+          <button class="auth-tab" data-auth-tab="register">Sign up</button>
+          <span class="auth-tab-slider" id="authSlider"></span>
+        </div>
+
+        <form class="auth-form" id="authForm" autocomplete="off">
+          <div class="auth-field" id="authNameField" hidden>
+            <span class="auth-ico">🙂</span>
+            <input id="authName" type="text" placeholder="Display name" maxlength="40" />
+          </div>
+          <div class="auth-field">
+            <span class="auth-ico">@</span>
+            <input id="authUser" type="text" placeholder="Username" maxlength="30" autocomplete="username" />
+          </div>
+          <div class="auth-field">
+            <span class="auth-ico">🔒</span>
+            <input id="authPass" type="password" placeholder="Password" maxlength="60" autocomplete="current-password" />
+            <button type="button" class="auth-eye" id="authEye" title="Show password">👁️</button>
+          </div>
+          <div class="auth-msg" id="authMsg"></div>
+          <button class="auth-submit" id="authSubmit" type="submit">Log in</button>
+        </form>
+
+        <div class="auth-foot">
+          <span id="authSwitchText">New here?</span>
+          <button class="auth-link" id="authSwitch">Create an account</button>
+        </div>
+        <button class="auth-guest" id="authGuest">Continue as guest →</button>
+      </div>
+    </div>
+
     <div id="toast" class="toast" hidden></div>
 
     <footer class="site-foot">
@@ -228,6 +289,6 @@
       <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=6" defer></script>
+    <script src="app.js?v=7" defer></script>
   </body>
 </html>
