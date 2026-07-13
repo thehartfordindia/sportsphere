@@ -587,6 +587,46 @@ async function loadGames() {
     renderGameGrid();
   }
   await refreshWallet();
+  loadLeaderboard();
+}
+async function loadLeaderboard() {
+  const list = $("lbList");
+  if (!list) return;
+  list.innerHTML = `<div class="pm-form-loading">Loading rankings…</div>`;
+  try {
+    const uid = state.userId ? `?userId=${encodeURIComponent(state.userId)}` : "";
+    const d = await api(`/api/leaderboard${uid}`);
+    const medal = (r) => (r === 1 ? "🥇" : r === 2 ? "🥈" : r === 3 ? "🥉" : `#${r}`);
+    list.innerHTML = (d.top || [])
+      .map(
+        (r) => `
+      <div class="lb-row ${r.you ? "you" : ""} ${r.rank <= 3 ? "podium" : ""}">
+        <span class="lb-rank">${medal(r.rank)}</span>
+        <span class="lb-avatar">${initials(r.name)}</span>
+        <div class="lb-info">
+          <div class="lb-name">${escapeHtml(r.name)}${r.you ? ' <span class="lb-tag">You</span>' : ""}</div>
+          <div class="lb-games">${r.games} games played</div>
+        </div>
+        <div class="lb-points"><b>${r.points.toLocaleString()}</b><span>pts · ₹${r.rupees}</span></div>
+      </div>`
+      )
+      .join("");
+    const you = $("lbYou");
+    if (d.me && d.me.rank > 15) {
+      you.hidden = false;
+      you.innerHTML = `
+        <div class="lb-row you">
+          <span class="lb-rank">#${d.me.rank}</span>
+          <span class="lb-avatar">${initials(d.me.name)}</span>
+          <div class="lb-info"><div class="lb-name">${escapeHtml(d.me.name)} <span class="lb-tag">You</span></div><div class="lb-games">${d.me.games} games played</div></div>
+          <div class="lb-points"><b>${d.me.points.toLocaleString()}</b><span>pts · ₹${d.me.rupees}</span></div>
+        </div>`;
+    } else {
+      you.hidden = true;
+    }
+  } catch (e) {
+    list.innerHTML = `<p class="section-sub" style="text-align:center;padding:1rem">Couldn't load leaderboard.</p>`;
+  }
 }
 function renderGameGrid() {
   const grid = $("gameGrid");
@@ -669,6 +709,7 @@ async function finishGame(gameId, score, summaryHtml) {
     });
     state.wallet = result.wallet;
     updateWalletUI();
+    loadLeaderboard();
   } catch (_e) { /* ignore */ }
   const g = state.games.find((x) => x.id === gameId) || { icon: "🎮", name: "Game" };
   $("gameModalBody").innerHTML = gameShell(g, `
@@ -1613,6 +1654,8 @@ function bindEvents() {
   $("menuInstall").addEventListener("click", installApp);
   const cmpBtn = $("compareBtn");
   if (cmpBtn) cmpBtn.addEventListener("click", openCompare);
+  const lbBtn = $("lbRefresh");
+  if (lbBtn) lbBtn.addEventListener("click", loadLeaderboard);
   $("authClose").addEventListener("click", closeAuth);
   $("authGuest").addEventListener("click", closeAuth);
   $("authForm").addEventListener("submit", (e) => { e.preventDefault(); submitAuth(); });
