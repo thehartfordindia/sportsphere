@@ -493,9 +493,14 @@ const PAY_CASHBACK_RATE = 0.02;
 const POINTS_PER_RUPEE = 100; // 100 points = ₹1
 const DAILY_POINTS_CAP = 1500; // max points earnable per day from games
 const MIN_REDEEM_POINTS = 100;
+// Daily check-in: escalating 7-day cycle (points), day 7 is the jackpot.
+const CHECKIN_REWARDS = [20, 30, 40, 60, 80, 120, 250];
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+function daysBetween(a, b) {
+  return Math.round((Date.parse(b) - Date.parse(a)) / 86400000);
 }
 function newWallet(userId) {
   return {
@@ -510,10 +515,11 @@ function newWallet(userId) {
     gamesPlayed: 0,
     streakDays: 1,
     lastPlayDate: null,
+    checkinStreak: 0,
+    lastCheckinDate: null,
     transactions: [
       { id: genId("TXN"), type: "BONUS", amount: SIGNUP_BONUS, note: "Welcome bonus", at: new Date().toISOString() },
-    ],
-  };
+    ],  };
 }
 // Ensure older stored wallets have all fields (migration-safe).
 function normalizeWallet(w) {
@@ -523,6 +529,8 @@ function normalizeWallet(w) {
   if (w.gamesPlayed == null) w.gamesPlayed = 0;
   if (w.streakDays == null) w.streakDays = 1;
   if (w.lastPlayDate === undefined) w.lastPlayDate = null;
+  if (w.checkinStreak == null) w.checkinStreak = 0;
+  if (w.lastCheckinDate === undefined) w.lastCheckinDate = null;
   return w;
 }
 function pushTxn(wallet, type, amount, note) {
@@ -556,6 +564,25 @@ function scoreToPoints(gameId, score) {
   const g = GAMES.find((x) => x.id === gameId);
   if (!g) return 0;
   return Math.round(clampNumber(score, 0, g.maxPoints, 0));
+}
+
+// Snapshot of a wallet's daily check-in state for the 7-day board.
+function checkinInfo(wallet) {
+  const t = today();
+  const last = wallet.lastCheckinDate;
+  const claimedToday = last === t;
+  let streak = wallet.checkinStreak || 0;
+  // A streak survives only if the last check-in was today or yesterday.
+  if (last && !claimedToday && daysBetween(last, t) > 1) streak = 0;
+  const todayIndex = claimedToday ? (streak - 1 + 7) % 7 : streak % 7;
+  return {
+    rewards: CHECKIN_REWARDS,
+    streak: claimedToday ? streak : streak, // consecutive days (incl today if claimed)
+    claimedToday,
+    canClaim: !claimedToday,
+    todayIndex,
+    todayReward: CHECKIN_REWARDS[claimedToday ? (streak - 1 + 7) % 7 : streak % 7],
+  };
 }
 
 /* ============================================================
@@ -754,6 +781,34 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { top, me, total: ranked.length });
     }
 
+    // ---- Daily check-in ----
+    if (pathname === "/api/checkin" && req.method === "GET") {
+      const userId = cleanText(query.get("userId") || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, checkinInfo(wallet));
+    }
+    if (pathname === "/api/checkin" && req.method === "POST") {
+      const body = await readBody(req);
+      const userId = cleanText(body.userId || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      const t = today();
+      if (wallet.lastCheckinDate === t) {
+        return sendJson(res, 200, { already: true, reward: 0, ...checkinInfo(wallet), wallet });
+      }
+      // Continue the streak if yesterday, else restart.
+      const cont = wallet.lastCheckinDate && daysBetween(wallet.lastCheckinDate, t) === 1;
+      const newStreak = cont ? (wallet.checkinStreak || 0) + 1 : 1;
+      const reward = CHECKIN_REWARDS[(newStreak - 1) % 7];
+      wallet.checkinStreak = newStreak;
+      wallet.lastCheckinDate = t;
+      wallet.points += reward;
+      pushTxn(wallet, "CHECKIN", 0, `Daily check-in day ${((newStreak - 1) % 7) + 1}: +${reward} pts`);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, { already: false, reward, streak: newStreak, ...checkinInfo(wallet), wallet });
+    }
+
+    // ---- Quiz ----
     if (pathname === "/api/games/quiz") {
       // Pick 5 random questions; return their real ids so scoring stays honest.
       const idxs = QUIZ.map((_, i) => i).sort(() => Math.random() - 0.5).slice(0, 5);
