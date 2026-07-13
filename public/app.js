@@ -23,9 +23,10 @@ const state = {
   watch: null,
   matchTimer: null,
   game: null, // active game session
+  follows: new Set(JSON.parse(localStorage.getItem("ss_follows") || "[]")),
+  plFollowing: false, // "Following only" filter in Players
 };
 const VIEWS = ["live", "highlights", "players", "games", "wallet"];
-
 /* ---------- helpers ---------- */
 const inr = (n) => "₹" + Number(n || 0).toLocaleString("en-IN");
 function escapeHtml(s) {
@@ -64,6 +65,49 @@ async function api(path, opts) {
 }
 function sportById(id) {
   return state.sports.find((s) => s.id === id);
+}
+
+/* ---------- follow players ---------- */
+function isFollowing(id) {
+  return state.follows.has(id);
+}
+function saveFollows() {
+  localStorage.setItem("ss_follows", JSON.stringify([...state.follows]));
+}
+function toggleFollow(id, name) {
+  if (state.follows.has(id)) {
+    state.follows.delete(id);
+    toast(`Unfollowed ${name || "player"}`);
+  } else {
+    state.follows.add(id);
+    toast(`Following ${name || "player"} ❤️`);
+  }
+  saveFollows();
+  // Refresh any visible follow controls + the Following filter chip.
+  syncFollowUI(id);
+  updateFollowChip();
+  if (state.plFollowing) loadPlayers();
+}
+function syncFollowUI(id) {
+  document.querySelectorAll(`[data-follow="${id}"]`).forEach((btn) => {
+    const on = isFollowing(id);
+    btn.classList.toggle("on", on);
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    if (btn.classList.contains("pm-follow")) {
+      btn.textContent = on ? "❤️ Following" : "🤍 Follow";
+    } else {
+      btn.textContent = on ? "❤️" : "🤍";
+    }
+    btn.title = on ? "Unfollow" : "Follow";
+  });
+}
+function updateFollowChip() {
+  const chip = $("plFollowChip");
+  if (chip) {
+    const n = state.follows.size;
+    chip.querySelector(".pf-count").textContent = n;
+    chip.classList.toggle("has", n > 0);
+  }
 }
 
 /* ---------- view switching ---------- */
@@ -320,16 +364,24 @@ async function loadHighlights() {
 async function loadPlayers() {
   const { players } = await api(`/api/players?sport=${state.plSport}`);
   const grid = $("playerGrid");
-  if (!players.length) {
-    const sport = sportById(state.plSport);
-    grid.innerHTML = `<div class="empty-state">${sport ? sport.icon : "⭐"} No star players listed for ${sport ? escapeHtml(sport.name) : "this sport"} yet.</div>`;
+  let list = players;
+  if (state.plFollowing) list = list.filter((p) => isFollowing(p.id));
+  if (!list.length) {
+    if (state.plFollowing) {
+      grid.innerHTML = `<div class="empty-state">❤️ You're not following anyone yet.<br><span class="empty-sub">Tap the heart on a player to add them here.</span></div>`;
+    } else {
+      const sport = sportById(state.plSport);
+      grid.innerHTML = `<div class="empty-state">${sport ? sport.icon : "⭐"} No star players listed for ${sport ? escapeHtml(sport.name) : "this sport"} yet.</div>`;
+    }
     return;
   }
-  grid.innerHTML = players
+  grid.innerHTML = list
     .map((p) => {
       const sport = sportById(p.sport);
+      const on = isFollowing(p.id);
       return `
       <div class="player-card" data-player="${p.id}">
+        <button class="follow-btn ${on ? "on" : ""}" data-follow="${p.id}" aria-pressed="${on ? "true" : "false"}" title="${on ? "Unfollow" : "Follow"}">${on ? "❤️" : "🤍"}</button>
         <div class="player-avatar">${initials(p.name)}</div>
         <div class="player-info">
           <h4>${escapeHtml(p.name)}</h4>
@@ -340,8 +392,19 @@ async function loadPlayers() {
       </div>`;
     })
     .join("");
-  grid.querySelectorAll("[data-player]").forEach((c) =>
-    c.addEventListener("click", () => openPlayer(c.getAttribute("data-player")))
+  grid.querySelectorAll(".player-card").forEach((c) =>
+    c.addEventListener("click", (e) => {
+      if (e.target.closest("[data-follow]")) return;
+      openPlayer(c.getAttribute("data-player"));
+    })
+  );
+  grid.querySelectorAll("[data-follow]").forEach((b) =>
+    b.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const card = b.closest(".player-card");
+      const name = card ? card.querySelector("h4").textContent : "";
+      toggleFollow(b.getAttribute("data-follow"), name);
+    })
   );
 }
 async function openPlayer(id) {
@@ -395,6 +458,7 @@ async function openPlayer(id) {
         <h3>${escapeHtml(p.name)} ${sourceTag}</h3>
         <div class="pm-tagline">${sport ? sport.icon : ""} ${escapeHtml(p.tagline || p.role)}</div>
       </div>
+      <button class="follow-btn pm-follow ${isFollowing(p.id) ? "on" : ""}" data-follow="${p.id}" aria-pressed="${isFollowing(p.id) ? "true" : "false"}" title="${isFollowing(p.id) ? "Unfollow" : "Follow"}">${isFollowing(p.id) ? "❤️ Following" : "🤍 Follow"}</button>
     </div>
     <div class="pm-tabs">
       <button class="pm-tab active" data-pane="overview">Overview</button>
@@ -434,6 +498,10 @@ async function openPlayer(id) {
     </div>`;
 
   $("playerModalBody").querySelector("[data-pclose]").addEventListener("click", () => ($("playerModal").hidden = true));
+  const pmFollow = $("playerModalBody").querySelector("[data-follow]");
+  if (pmFollow) {
+    pmFollow.addEventListener("click", () => toggleFollow(p.id, p.name));
+  }
   $("playerModalBody").querySelectorAll(".pm-tab").forEach((tab) => {
     tab.addEventListener("click", () => {
       const pane = tab.getAttribute("data-pane");
@@ -1656,6 +1724,12 @@ function bindEvents() {
   if (cmpBtn) cmpBtn.addEventListener("click", openCompare);
   const lbBtn = $("lbRefresh");
   if (lbBtn) lbBtn.addEventListener("click", loadLeaderboard);
+  const pfChip = $("plFollowChip");
+  if (pfChip) pfChip.addEventListener("click", () => {
+    state.plFollowing = !state.plFollowing;
+    pfChip.classList.toggle("active", state.plFollowing);
+    loadPlayers();
+  });
   $("authClose").addEventListener("click", closeAuth);
   $("authGuest").addEventListener("click", closeAuth);
   $("authForm").addEventListener("submit", (e) => { e.preventDefault(); submitAuth(); });
@@ -1697,6 +1771,7 @@ async function init() {
   }
   bindEvents();
   updateAccountUI();
+  updateFollowChip();
   initPwa();
   try {
     await loadSports();
