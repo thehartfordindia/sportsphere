@@ -1329,6 +1329,36 @@ a { color: var(--primary); }
 .ach-bar span { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
 .ach-prog { font-size: 0.68rem; color: var(--ink-faint); margin-top: 4px; font-weight: 600; }
 
+/* ===================== Stats snapshot ===================== */
+.stats-card {
+  margin: 1.4rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem 1.3rem;
+  box-shadow: var(--shadow-sm);
+}
+.stats-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 0.9rem; }
+.stats-head .block-title { margin: 0; }
+.stats-rank {
+  flex: none; font-weight: 800; font-size: 0.8rem; color: var(--ink);
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  border: 1px solid var(--gold);
+  padding: 5px 12px; border-radius: 999px; white-space: nowrap;
+}
+.stats-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 12px;
+}
+.stat-tile {
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--surface-2); padding: 14px 12px; text-align: center;
+}
+.stat-ico { font-size: 1.5rem; line-height: 1; margin-bottom: 6px; }
+.stat-val { font-size: 1.3rem; font-weight: 800; color: var(--ink); line-height: 1.1; }
+.stat-label { font-size: 0.78rem; color: var(--ink-soft); margin-top: 3px; font-weight: 600; }
+.stat-sub { font-size: 0.68rem; color: var(--ink-faint); margin-top: 2px; }
+
 /* ===================== Profile editor ===================== */
 .profile-head {
   display: flex;
