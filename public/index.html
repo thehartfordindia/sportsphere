@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="SportSphere" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=9" />
+    <link rel="stylesheet" href="styles.css?v=10" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
@@ -112,6 +112,7 @@
             <h2 class="section-title">⭐ Star Players</h2>
             <p class="section-sub">Career, personal life, lifestyle and how they connect with fans on social media.</p>
           </div>
+          <button class="compare-btn" id="compareBtn">⚔️ Compare players</button>
         </div>
         <div class="chips" id="plSportChips"></div>
         <div class="player-grid" id="playerGrid"></div>
@@ -234,6 +235,9 @@
     <div id="profileModal" class="modal" hidden>
       <div class="modal-card" id="profileModalBody"></div>
     </div>
+    <div id="compareModal" class="modal" hidden>
+      <div class="modal-card modal-lg" id="compareModalBody"></div>
+    </div>
 
     <!-- ===================== Account menu ===================== -->
     <div id="accountMenu" class="account-menu" hidden>
@@ -301,6 +305,6 @@
       <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=9" defer></script>
+    <script src="app.js?v=10" defer></script>
   </body>
 </html>
