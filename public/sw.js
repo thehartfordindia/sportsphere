@@ -1,10 +1,10 @@
 /* SportSphere service worker — app-shell caching for offline & fast loads. */
-const CACHE = "sportsphere-v12";
+const CACHE = "sportsphere-v13";
 const SHELL = [
   "./",
   "./index.html",
-  "./styles.css?v=12",
-  "./app.js?v=12",
+  "./styles.css?v=13",
+  "./app.js?v=13",
   "./icon.svg",
   "./manifest.webmanifest",
 ];
