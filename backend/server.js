@@ -496,6 +496,27 @@ const MIN_REDEEM_POINTS = 100;
 // Daily check-in: escalating 7-day cycle (points), day 7 is the jackpot.
 const CHECKIN_REWARDS = [20, 30, 40, 60, 80, 120, 250];
 
+// Achievement badges — unlocked by reaching milestones on wallet stats.
+const ACHIEVEMENTS = [
+  { id: "welcome", icon: "🎉", name: "Welcome Aboard", desc: "Join SportSphere", metric: "always", target: 1 },
+  { id: "first_game", icon: "🎮", name: "First Game", desc: "Play your first game", metric: "gamesPlayed", target: 1 },
+  { id: "ten_games", icon: "🕹️", name: "Warmed Up", desc: "Play 10 games", metric: "gamesPlayed", target: 10 },
+  { id: "fifty_games", icon: "🏆", name: "Game Master", desc: "Play 50 games", metric: "gamesPlayed", target: 50 },
+  { id: "century", icon: "💯", name: "Century Club", desc: "Earn 100 points", metric: "points", target: 100 },
+  { id: "high_roller", icon: "💰", name: "High Roller", desc: "Earn 1,000 points", metric: "points", target: 1000 },
+  { id: "checkin3", icon: "🔥", name: "On Fire", desc: "Hit a 3-day check-in streak", metric: "checkinStreak", target: 3 },
+  { id: "checkin7", icon: "📅", name: "Loyal Fan", desc: "Hit a 7-day check-in streak", metric: "checkinStreak", target: 7 },
+];
+function buildAchievements(wallet) {
+  const list = ACHIEVEMENTS.map((a) => {
+    const value = a.metric === "always" ? 1 : Number(wallet[a.metric] || 0);
+    const unlocked = value >= a.target;
+    const pct = Math.max(0, Math.min(100, Math.round((value / a.target) * 100)));
+    return { id: a.id, icon: a.icon, name: a.name, desc: a.desc, target: a.target, value, unlocked, pct };
+  });
+  return { achievements: list, unlockedCount: list.filter((a) => a.unlocked).length, total: list.length };
+}
+
 function today() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -806,6 +827,14 @@ const server = http.createServer(async (req, res) => {
       pushTxn(wallet, "CHECKIN", 0, `Daily check-in day ${((newStreak - 1) % 7) + 1}: +${reward} pts`);
       await store.saveWallet(userId, wallet);
       return sendJson(res, 200, { already: false, reward, streak: newStreak, ...checkinInfo(wallet), wallet });
+    }
+
+    // ---- Achievements ----
+    if (pathname === "/api/achievements" && req.method === "GET") {
+      const userId = cleanText(query.get("userId") || "guest", 60);
+      const wallet = await loadOrCreateWallet(userId);
+      await store.saveWallet(userId, wallet);
+      return sendJson(res, 200, buildAchievements(wallet));
     }
 
     // ---- Quiz ----
