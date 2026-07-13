@@ -656,6 +656,7 @@ async function loadGames() {
   }
   await refreshWallet();
   loadLeaderboard();
+  loadCheckin();
 }
 async function loadLeaderboard() {
   const list = $("lbList");
@@ -694,6 +695,75 @@ async function loadLeaderboard() {
     }
   } catch (e) {
     list.innerHTML = `<p class="section-sub" style="text-align:center;padding:1rem">Couldn't load leaderboard.</p>`;
+  }
+}
+async function loadCheckin() {
+  const card = $("checkinCard");
+  if (!card) return;
+  try {
+    const uid = state.userId ? `?userId=${encodeURIComponent(state.userId)}` : "";
+    const d = await api(`/api/checkin${uid}`);
+    renderCheckin(d);
+  } catch (e) {
+    card.hidden = true;
+  }
+}
+function renderCheckin(d) {
+  const card = $("checkinCard");
+  if (!card) return;
+  card.hidden = false;
+  const rewards = d.rewards || [];
+  $("checkinDays").innerHTML = rewards
+    .map((pts, i) => {
+      const done = i < d.todayIndex || (d.claimedToday && i === d.todayIndex);
+      const isToday = i === d.todayIndex;
+      const cls = done ? "done" : isToday && d.canClaim ? "today" : "locked";
+      const mark = done ? "✓" : `+${pts}`;
+      return `<div class="ci-day ${cls} ${i === 6 ? "jackpot" : ""}">
+        <span class="ci-day-n">Day ${i + 1}</span>
+        <span class="ci-day-pts">${mark}</span>
+      </div>`;
+    })
+    .join("");
+  const flame = $("checkinFlame");
+  if (flame) flame.innerHTML = `🔥 <b>${d.streak || 0}</b>`;
+  const btn = $("checkinBtn");
+  const sub = $("checkinSub");
+  if (d.claimedToday) {
+    btn.disabled = true;
+    btn.textContent = "✓ Checked in today — come back tomorrow";
+    if (sub) sub.textContent = `You're on a ${d.streak}-day streak. Keep it alive for the day-7 jackpot!`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = `Claim +${d.todayReward} points`;
+    if (sub) sub.textContent = "Check in every day for bonus points — the streak grows all week!";
+  }
+}
+async function claimCheckin() {
+  const btn = $("checkinBtn");
+  if (!btn || btn.disabled) return;
+  btn.disabled = true;
+  try {
+    const d = await api("/api/checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: state.userId || "guest" }),
+    });
+    if (d.wallet) {
+      state.wallet = d.wallet;
+      updatePointsUI();
+      updateWalletUI();
+    }
+    renderCheckin(d);
+    if (d.already) {
+      toast("You already checked in today.");
+    } else {
+      toast(`🎁 +${d.reward} points! 🔥 ${d.streak}-day streak`);
+      loadLeaderboard();
+    }
+  } catch (e) {
+    btn.disabled = false;
+    toast("Couldn't check in. Try again.");
   }
 }
 function renderGameGrid() {
@@ -1724,6 +1794,8 @@ function bindEvents() {
   if (cmpBtn) cmpBtn.addEventListener("click", openCompare);
   const lbBtn = $("lbRefresh");
   if (lbBtn) lbBtn.addEventListener("click", loadLeaderboard);
+  const ciBtn = $("checkinBtn");
+  if (ciBtn) ciBtn.addEventListener("click", claimCheckin);
   const pfChip = $("plFollowChip");
   if (pfChip) pfChip.addEventListener("click", () => {
     state.plFollowing = !state.plFollowing;
