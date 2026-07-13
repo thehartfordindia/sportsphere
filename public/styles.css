@@ -1179,6 +1179,47 @@ a { color: var(--primary); }
 .ci-day.jackpot .ci-day-n::after { content: " 🏆"; }
 .ci-day.jackpot { border-style: dashed; }
 
+/* ===================== Daily trivia ===================== */
+.trivia-card {
+  margin: 1.4rem 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1.1rem 1.2rem 1.3rem;
+  box-shadow: var(--shadow-sm);
+}
+.trivia-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 0.6rem; }
+.trivia-title { margin: 0; font-size: 1.05rem; }
+.trivia-sub { margin: 0.2rem 0 0; font-size: 0.82rem; color: var(--ink-soft); }
+.trivia-streak {
+  flex: none; font-size: 0.9rem; font-weight: 700; color: var(--ink);
+  background: var(--surface-2); border: 1px solid var(--border);
+  padding: 6px 12px; border-radius: 999px; white-space: nowrap;
+}
+.trivia-streak b { color: var(--live); }
+.trivia-q { font-size: 1rem; font-weight: 600; color: var(--ink); margin: 0.6rem 0 0.9rem; }
+.trivia-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.trivia-opt {
+  text-align: left; padding: 12px 14px; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); background: var(--surface-2);
+  color: var(--ink); font-size: 0.9rem; font-weight: 600; cursor: pointer;
+  transition: transform 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+}
+.trivia-opt:not(:disabled):hover { border-color: var(--primary); transform: translateY(-2px); }
+.trivia-opt:disabled { cursor: default; }
+.trivia-opt.done { opacity: 0.65; }
+.trivia-opt.correct {
+  opacity: 1; border-color: var(--ok);
+  background: color-mix(in srgb, var(--ok) 18%, var(--surface));
+  color: var(--ok);
+}
+.trivia-result { margin: 0.9rem 0 0; font-size: 0.88rem; font-weight: 600; }
+.trivia-result.win { color: var(--ok); }
+.trivia-result.lose { color: var(--live); }
+@media (max-width: 480px) {
+  .trivia-opts { grid-template-columns: 1fr; }
+}
+
 /* ===================== Leaderboard ===================== */
 .leaderboard {
   margin-top: 1.6rem;
