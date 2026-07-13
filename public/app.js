@@ -1400,6 +1400,111 @@ async function submitProfile(e) {
   }
 }
 
+/* ---------- head-to-head compare ---------- */
+const compareState = { a: "", b: "" };
+async function openCompare() {
+  // Ensure we have the player list to populate the pickers.
+  let players = state.allPlayers;
+  if (!players) {
+    const r = await api("/api/players?sport=all");
+    players = r.players;
+    state.allPlayers = players;
+  }
+  const opts = (sel) =>
+    players
+      .map((p) => {
+        const sport = sportById(p.sport);
+        return `<option value="${p.id}" ${p.id === sel ? "selected" : ""}>${sport ? sport.icon : ""} ${escapeHtml(p.name)} · ${escapeHtml(p.country)}</option>`;
+      })
+      .join("");
+  if (!compareState.a) compareState.a = players[0] ? players[0].id : "";
+  if (!compareState.b) compareState.b = players[1] ? players[1].id : "";
+  $("compareModalBody").innerHTML = `
+    <button class="modal-close" id="compareClose">✕</button>
+    <div class="cmp-head">
+      <h3>⚔️ Head-to-Head</h3>
+      <p class="section-sub">Pick two stars and see who's on top right now.</p>
+    </div>
+    <div class="cmp-pickers">
+      <select id="cmpA" class="pay-select">${opts(compareState.a)}</select>
+      <span class="cmp-vs">VS</span>
+      <select id="cmpB" class="pay-select">${opts(compareState.b)}</select>
+    </div>
+    <div class="cmp-result" id="cmpResult"><div class="pm-form-loading">Choose players to compare…</div></div>`;
+  $("compareModal").hidden = false;
+  $("compareClose").addEventListener("click", () => ($("compareModal").hidden = true));
+  const run = () => {
+    compareState.a = $("cmpA").value;
+    compareState.b = $("cmpB").value;
+    runCompare();
+  };
+  $("cmpA").addEventListener("change", run);
+  $("cmpB").addEventListener("change", run);
+  runCompare();
+}
+async function runCompare() {
+  const box = $("cmpResult");
+  if (!box) return;
+  if (compareState.a === compareState.b) {
+    box.innerHTML = `<p class="section-sub" style="text-align:center;padding:1.4rem">Pick two different players.</p>`;
+    return;
+  }
+  box.innerHTML = `<div class="pm-form-loading">Comparing…</div>`;
+  try {
+    const d = await api(`/api/compare?a=${encodeURIComponent(compareState.a)}&b=${encodeURIComponent(compareState.b)}`);
+    box.innerHTML = renderCompare(d);
+  } catch (e) {
+    box.innerHTML = `<p class="section-sub" style="text-align:center;padding:1.4rem">${escapeHtml(e.message || "Couldn't compare.")}</p>`;
+  }
+}
+function cmpCard(p, isWinner) {
+  const sport = sportById(p.sport);
+  return `
+    <div class="cmp-card ${isWinner ? "win" : ""}">
+      ${isWinner ? '<span class="cmp-crown">👑</span>' : ""}
+      <div class="cmp-avatar">${initials(p.name)}</div>
+      <div class="cmp-name">${escapeHtml(p.name)}</div>
+      <div class="cmp-role">${sport ? sport.icon : ""} ${escapeHtml(p.role)} · ${escapeHtml(p.country)}</div>
+      <div class="cmp-momentum">${p.momentumIcon || "📊"} ${escapeHtml(p.momentum || "")}</div>
+    </div>`;
+}
+function renderCompare(d) {
+  const aWin = d.verdict === "a";
+  const bWin = d.verdict === "b";
+  const rows = (d.metrics || [])
+    .map((m) => {
+      const total = (Number(m.a) + Number(m.b)) || 1;
+      const aPct = Math.round((Number(m.a) / total) * 100);
+      const bPct = 100 - aPct;
+      return `
+      <div class="cmp-metric">
+        <div class="cmp-metric-top">
+          <span class="cmp-val ${m.winner === "a" ? "win" : ""}">${m.a}</span>
+          <span class="cmp-label">${escapeHtml(m.label)}</span>
+          <span class="cmp-val ${m.winner === "b" ? "win" : ""}">${m.b}</span>
+        </div>
+        <div class="cmp-bar">
+          <div class="cmp-bar-a ${m.winner === "a" ? "win" : ""}" style="width:${aPct}%"></div>
+          <div class="cmp-bar-b ${m.winner === "b" ? "win" : ""}" style="width:${bPct}%"></div>
+        </div>
+      </div>`;
+    })
+    .join("");
+  const verdictText =
+    d.verdict === "tie"
+      ? "It's a dead heat — too close to call."
+      : `${escapeHtml((d.verdict === "a" ? d.a : d.b).name)} edges it right now.`;
+  const note = d.sameSport ? "" : `<p class="cmp-note">⚠️ Different sports — compare with a pinch of salt.</p>`;
+  return `
+    <div class="cmp-cards">
+      ${cmpCard(d.a, aWin)}
+      ${cmpCard(d.b, bWin)}
+    </div>
+    <div class="cmp-metrics">${rows}</div>
+    <div class="cmp-verdict">${verdictText}</div>
+    ${note}`;
+}
+
 /* ---------- PWA install + service worker ---------- */
 let deferredInstall = null;
 function initPwa() {
@@ -1506,6 +1611,8 @@ function bindEvents() {
   $("menuWallet").addEventListener("click", () => { $("accountMenu").hidden = true; });
   $("menuProfile").addEventListener("click", openProfile);
   $("menuInstall").addEventListener("click", installApp);
+  const cmpBtn = $("compareBtn");
+  if (cmpBtn) cmpBtn.addEventListener("click", openCompare);
   $("authClose").addEventListener("click", closeAuth);
   $("authGuest").addEventListener("click", closeAuth);
   $("authForm").addEventListener("submit", (e) => { e.preventDefault(); submitAuth(); });
@@ -1527,7 +1634,7 @@ function bindEvents() {
     }
   });
 
-  ["playerModal", "watchModal", "payModal", "gameModal", "matchModal", "profileModal"].forEach((id) => {
+  ["playerModal", "watchModal", "payModal", "gameModal", "matchModal", "profileModal", "compareModal"].forEach((id) => {
     $(id).addEventListener("click", (e) => {
       if (e.target.id === id) {
         if (id === "watchModal") closeWatch();
