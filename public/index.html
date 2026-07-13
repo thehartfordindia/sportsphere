@@ -15,7 +15,7 @@
     <meta name="apple-mobile-web-app-title" content="SportSphere" />
     <link rel="icon" type="image/svg+xml" href="icon.svg" />
     <link rel="apple-touch-icon" href="icon.svg" />
-    <link rel="stylesheet" href="styles.css?v=14" />
+    <link rel="stylesheet" href="styles.css?v=15" />
   </head>
   <body>
     <!-- ===================== Header ===================== -->
@@ -158,6 +158,19 @@
           </div>
           <div class="checkin-days" id="checkinDays"></div>
           <button class="btn btn-primary btn-block" id="checkinBtn">Claim today's reward</button>
+        </div>
+
+        <div class="trivia-card" id="triviaCard" hidden>
+          <div class="trivia-head">
+            <div>
+              <h3 class="trivia-title">🧠 Question of the Day</h3>
+              <p class="trivia-sub" id="triviaSub">Answer correctly every day to build your trivia streak!</p>
+            </div>
+            <div class="trivia-streak" id="triviaStreak">🔥 <b>0</b></div>
+          </div>
+          <p class="trivia-q" id="triviaQ">Loading…</p>
+          <div class="trivia-opts" id="triviaOpts"></div>
+          <p class="trivia-result" id="triviaResult" hidden></p>
         </div>
 
         <div class="game-grid" id="gameGrid"></div>
@@ -343,6 +356,6 @@
       <span class="foot-dim">Live data via TheSportsDB · scores &amp; wallet are for demonstration.</span>
     </footer>
 
-    <script src="app.js?v=14" defer></script>
+    <script src="app.js?v=15" defer></script>
   </body>
 </html>
