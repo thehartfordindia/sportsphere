@@ -350,6 +350,11 @@ a { color: var(--primary); }
 
 /* ===== Players ===== */
 .player-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 1.1rem; }
+.empty-state {
+  grid-column: 1 / -1; text-align: center; padding: 2.5rem 1rem;
+  color: var(--muted); font-size: 1.05rem; background: var(--surface);
+  border: 1px dashed var(--line); border-radius: var(--radius);
+}
 .player-card {
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 1.2rem; cursor: pointer; box-shadow: var(--shadow-sm);
