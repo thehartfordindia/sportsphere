@@ -444,6 +444,7 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".png": "image/png",
   ".ico": "image/x-icon",
+  ".webmanifest": "application/manifest+json; charset=utf-8",
 };
 function serveStatic(res, fileName) {
   const safe = path.normalize(fileName).replace(/^(\.\.[/\\])+/, "");
@@ -738,12 +739,13 @@ const server = http.createServer(async (req, res) => {
         id: handle,
         name,
         pass: hashPassword(password),
+        favSport: "all",
         createdAt: new Date().toISOString(),
       };
       await store.saveUser(handle, user);
       // Give the new user a starter wallet.
       await loadOrCreateWallet(handle);
-      return sendJson(res, 200, { userId: handle, name });
+      return sendJson(res, 200, { userId: handle, name, favSport: "all" });
     }
     if (pathname === "/api/auth/login" && req.method === "POST") {
       const body = await readBody(req);
@@ -753,7 +755,23 @@ const server = http.createServer(async (req, res) => {
       if (!user || !verifyPassword(password, user.pass)) {
         return sendJson(res, 401, { error: "Wrong username or password." });
       }
-      return sendJson(res, 200, { userId: handle, name: user.name || handle });
+      return sendJson(res, 200, { userId: handle, name: user.name || handle, favSport: user.favSport || "all" });
+    }
+    if (pathname === "/api/auth/profile" && req.method === "POST") {
+      const body = await readBody(req);
+      const handle = normalizeHandle(body.userId);
+      const user = await store.getUser(handle);
+      if (!user) return sendJson(res, 404, { error: "Sign in to edit your profile." });
+      if (body.name != null) user.name = cleanText(body.name, 40) || user.name;
+      if (body.favSport != null) user.favSport = cleanText(body.favSport, 20);
+      if (body.newPassword) {
+        const np = String(body.newPassword);
+        if (np.length < 4) return sendJson(res, 400, { error: "New password needs at least 4 characters." });
+        user.pass = hashPassword(np);
+      }
+      user.updatedAt = new Date().toISOString();
+      await store.saveUser(handle, user);
+      return sendJson(res, 200, { userId: handle, name: user.name, favSport: user.favSport || "all" });
     }
 
     // ---- Wallet ----
